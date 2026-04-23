@@ -1,4 +1,7 @@
-// ─── STATE ──────────────────────────────────────────────────────────────────
+// ─── BASE PATH (injecté depuis la balise <meta name="base-path">) ─────────────
+const BASE_PATH = document.querySelector('meta[name="base-path"]')?.content || '';
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
 let state = {
   connected: false,
   guild: null,
@@ -7,7 +10,7 @@ let state = {
   schedules: []
 };
 
-// ─── INIT ────────────────────────────────────────────────────────────────────
+// ─── INIT ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   pollStatus();
   setInterval(pollStatus, 8000);
@@ -15,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function pollStatus() {
   try {
-    const res = await fetch('/api/status');
+    const res = await fetch(`${BASE_PATH}/api/status`);
     const data = await res.json();
     updateStatus(data);
   } catch (e) {}
@@ -34,13 +37,11 @@ function updateStatus(data) {
     pill.classList.add('connected');
     statusText.textContent = data.guild.name;
 
-    // Affiche les panneaux
     document.getElementById('serverPanel').style.display = '';
     document.getElementById('immediatePanel').style.display = '';
     document.getElementById('schedulePanel').style.display = '';
     document.getElementById('schedulesListPanel').style.display = '';
 
-    // Server info
     document.getElementById('serverName').textContent = data.guild.name;
     document.getElementById('channelCount').textContent = `${data.channels.length} channels`;
     document.getElementById('roleCount').textContent = `${data.roles.length} rôles`;
@@ -63,12 +64,11 @@ function updateStatus(data) {
   }
 }
 
-// ─── RENDER HELPERS ─────────────────────────────────────────────────────────
+// ─── RENDER HELPERS ──────────────────────────────────────────────────────────
 function renderChannels(containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
-  // Regroupe par catégorie
   const grouped = {};
   for (const ch of state.channels) {
     if (!grouped[ch.parentName]) grouped[ch.parentName] = [];
@@ -119,7 +119,7 @@ function getSelectedChannels(containerId) {
   return [...container.querySelectorAll('.channel-item.selected')].map(el => el.dataset.id);
 }
 
-// ─── CONNEXION ───────────────────────────────────────────────────────────────
+// ─── CONNEXION ────────────────────────────────────────────────────────────────
 async function connectBot() {
   const token = document.getElementById('botToken').value.trim();
   if (!token) return showError('connectError', 'Token requis');
@@ -131,7 +131,7 @@ async function connectBot() {
   hideError('connectError');
 
   try {
-    const res = await fetch('/api/connect', {
+    const res = await fetch(`${BASE_PATH}/api/connect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token })
@@ -142,7 +142,6 @@ async function connectBot() {
       showError('connectError', data.error || 'Erreur de connexion');
     } else {
       showToast('✅ Bot connecté avec succès !', 'success');
-      // Attendre et recharger le statut
       setTimeout(pollStatus, 1500);
     }
   } catch (e) {
@@ -153,7 +152,7 @@ async function connectBot() {
   }
 }
 
-// ─── LOCK / UNLOCK IMMÉDIAT ──────────────────────────────────────────────────
+// ─── LOCK / UNLOCK IMMÉDIAT ───────────────────────────────────────────────────
 async function lockNow() {
   const channelIds = getSelectedChannels('quickChannels');
   const roleId = document.getElementById('quickRole').value;
@@ -163,7 +162,7 @@ async function lockNow() {
   if (!channelIds.length) return showFeedback('Veuillez sélectionner au moins un channel', false);
 
   try {
-    const res = await fetch('/api/lock-now', {
+    const res = await fetch(`${BASE_PATH}/api/lock-now`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ channelIds, roleId, message })
@@ -187,7 +186,7 @@ async function unlockNow() {
   if (!channelIds.length) return showFeedback('Veuillez sélectionner au moins un channel', false);
 
   try {
-    const res = await fetch('/api/unlock-now', {
+    const res = await fetch(`${BASE_PATH}/api/unlock-now`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ channelIds, roleId })
@@ -212,7 +211,7 @@ function showFeedback(msg, success) {
   el.style.background = success ? 'rgba(87,242,135,0.08)' : 'rgba(237,66,69,0.08)';
 }
 
-// ─── PLANIFICATIONS ──────────────────────────────────────────────────────────
+// ─── PLANIFICATIONS ───────────────────────────────────────────────────────────
 async function addSchedule() {
   const day = document.getElementById('schedDay').value;
   const startTime = document.getElementById('schedStart').value;
@@ -229,7 +228,7 @@ async function addSchedule() {
   if (startTime >= endTime) return showError('schedError', 'L\'heure de lock doit être avant l\'heure d\'unlock');
 
   try {
-    const res = await fetch('/api/schedules', {
+    const res = await fetch(`${BASE_PATH}/api/schedules`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ day, startTime, endTime, channelIds, roleId, lockMessage })
@@ -238,10 +237,7 @@ async function addSchedule() {
     if (!res.ok) throw new Error(data.error);
 
     showToast(`✅ Lock planifié : ${capitalize(day)} ${startTime}–${endTime}`, 'success');
-
-    // Reset channel selection
     document.querySelectorAll('#schedChannels .channel-item').forEach(el => el.classList.remove('selected'));
-
     loadSchedules();
   } catch (e) {
     showError('schedError', e.message);
@@ -250,7 +246,7 @@ async function addSchedule() {
 
 async function loadSchedules() {
   try {
-    const res = await fetch('/api/schedules');
+    const res = await fetch(`${BASE_PATH}/api/schedules`);
     const data = await res.json();
     state.schedules = data;
     renderSchedules(data);
@@ -309,7 +305,7 @@ function renderSchedules(schedules) {
 
 async function toggleSchedule(id, btn) {
   try {
-    const res = await fetch(`/api/schedules/${id}/toggle`, { method: 'PATCH' });
+    const res = await fetch(`${BASE_PATH}/api/schedules/${id}/toggle`, { method: 'PATCH' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     showToast(data.schedule.active ? '▶ Planification activée' : '⏸ Planification désactivée', 'success');
@@ -323,7 +319,7 @@ async function deleteSchedule(id) {
   if (!confirm('Supprimer cette planification ?')) return;
 
   try {
-    const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${BASE_PATH}/api/schedules/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Erreur suppression');
     showToast('🗑 Planification supprimée', 'success');
     loadSchedules();
@@ -332,7 +328,7 @@ async function deleteSchedule(id) {
   }
 }
 
-// ─── UI HELPERS ──────────────────────────────────────────────────────────────
+// ─── UI HELPERS ───────────────────────────────────────────────────────────────
 function showError(id, msg) {
   const el = document.getElementById(id);
   if (el) { el.textContent = msg; el.style.display = ''; }

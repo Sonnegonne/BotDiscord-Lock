@@ -7,12 +7,19 @@ const { createSchedule, deleteSchedule, toggleSchedule, getSchedules } = require
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public')));
+
+// ─── BASE PATH ────────────────────────────────────────────────────────────────
+// En local : BASE_PATH='' (défaut)
+// Sur VPS  : BASE_PATH='/lock'
+const BASE_PATH = process.env.BASE_PATH || '/lock';
+
+// Sert les fichiers statiques sous /lock/css, /lock/js, etc.
+app.use(`${BASE_PATH}`, express.static(path.join(__dirname, '../public')));
 
 // ─── STATUS ───────────────────────────────────────────────────────────────────
-app.get('/api/status', async (req, res) => {
+app.get(`${BASE_PATH}/api/status`, async (req, res) => {
   try {
-    const status = await refreshGuildData();
+    await refreshGuildData();
     res.json(getStatus());
   } catch (err) {
     res.json(getStatus());
@@ -20,13 +27,12 @@ app.get('/api/status', async (req, res) => {
 });
 
 // ─── CONNEXION BOT ────────────────────────────────────────────────────────────
-app.post('/api/connect', async (req, res) => {
+app.post(`${BASE_PATH}/api/connect`, async (req, res) => {
   const { token } = req.body;
   if (!token) return res.status(400).json({ error: 'Token requis' });
 
   try {
-    const status = await connectBot(token);
-    // Attendre que le bot soit prêt
+    await connectBot(token);
     await new Promise(resolve => setTimeout(resolve, 3000));
     await refreshGuildData();
     res.json({ success: true, status: getStatus() });
@@ -36,7 +42,7 @@ app.post('/api/connect', async (req, res) => {
 });
 
 // ─── LOCK IMMÉDIAT ────────────────────────────────────────────────────────────
-app.post('/api/lock-now', async (req, res) => {
+app.post(`${BASE_PATH}/api/lock-now`, async (req, res) => {
   const { channelIds, roleId, message } = req.body;
   if (!channelIds?.length || !roleId) {
     return res.status(400).json({ error: 'channelIds et roleId requis' });
@@ -51,7 +57,7 @@ app.post('/api/lock-now', async (req, res) => {
 });
 
 // ─── UNLOCK IMMÉDIAT ─────────────────────────────────────────────────────────
-app.post('/api/unlock-now', async (req, res) => {
+app.post(`${BASE_PATH}/api/unlock-now`, async (req, res) => {
   const { channelIds, roleId } = req.body;
   if (!channelIds?.length || !roleId) {
     return res.status(400).json({ error: 'channelIds et roleId requis' });
@@ -66,11 +72,11 @@ app.post('/api/unlock-now', async (req, res) => {
 });
 
 // ─── PLANIFICATIONS ───────────────────────────────────────────────────────────
-app.get('/api/schedules', (req, res) => {
+app.get(`${BASE_PATH}/api/schedules`, (req, res) => {
   res.json(getSchedules());
 });
 
-app.post('/api/schedules', (req, res) => {
+app.post(`${BASE_PATH}/api/schedules`, (req, res) => {
   try {
     const schedule = createSchedule(req.body);
     res.json({ success: true, schedule });
@@ -79,7 +85,7 @@ app.post('/api/schedules', (req, res) => {
   }
 });
 
-app.delete('/api/schedules/:id', (req, res) => {
+app.delete(`${BASE_PATH}/api/schedules/:id`, (req, res) => {
   try {
     deleteSchedule(req.params.id);
     res.json({ success: true });
@@ -88,7 +94,7 @@ app.delete('/api/schedules/:id', (req, res) => {
   }
 });
 
-app.patch('/api/schedules/:id/toggle', (req, res) => {
+app.patch(`${BASE_PATH}/api/schedules/:id/toggle`, (req, res) => {
   try {
     const schedule = toggleSchedule(req.params.id);
     res.json({ success: true, schedule });
@@ -97,14 +103,19 @@ app.patch('/api/schedules/:id/toggle', (req, res) => {
   }
 });
 
-// ─── SERVE DASHBOARD ─────────────────────────────────────────────────────────
-app.get('*', (req, res) => {
+// ─── SERVE DASHBOARD (catch-all sous /lock) ───────────────────────────────────
+app.get(`${BASE_PATH}`, (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+app.get(`${BASE_PATH}/*path`, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🌐 Dashboard disponible sur http://localhost:${PORT}`);
+  const base = BASE_PATH || '/';
+  console.log(`🌐 Dashboard disponible sur http://localhost:${PORT}${base}`);
 });
 
 module.exports = app;
