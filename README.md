@@ -1,10 +1,9 @@
-# 🔒 Discord Lock Bot
-
+# Discord Lock Bot
 Bot Discord avec dashboard web pour verrouiller/déverrouiller des channels selon un planning ou immédiatement.
 
-## ✨ Fonctionnalités
+## Fonctionnalités
 
-- **Dashboard web** sur `http://localhost:3000`
+- **Dashboard web** sur `http://localhost:3000/lock`
 - Connexion au bot via token
 - Vue de tous les channels textuels du serveur (groupés par catégorie)
 - **Lock / Unlock immédiat** avec un ou plusieurs channels
@@ -13,13 +12,13 @@ Bot Discord avec dashboard web pour verrouiller/déverrouiller des channels selo
 - Activation/désactivation des planifications sans les supprimer
 - Notifications toast dans l'interface
 
-## 🚀 Installation
+## Installation
 
 ```bash
 npm install
 ```
 
-## ⚙️ Configuration du bot Discord
+## Configuration
 
 1. Va sur https://discord.com/developers/applications
 2. Crée une nouvelle application → "Bot"
@@ -35,35 +34,20 @@ npm install
 https://discord.com/api/oauth2/authorize?client_id=TON_CLIENT_ID&permissions=268495872&scope=bot
 ```
 
-## 🎮 Démarrage
+## Démarrage
 
 ```bash
 node index.js
 ```
 
-Puis ouvre `http://localhost:3000` dans ton navigateur.
+Puis ouvre `http://localhost:3000/lock` dans ton navigateur.
 
 1. Colle ton token bot dans le champ de connexion
 2. Les channels de ton serveur apparaissent automatiquement
 3. Configure tes planifications ou utilise les boutons de lock immédiat
 
-## 📋 Notes importantes
+## Notes importantes
 
 - Le bot doit avoir un rôle **au-dessus** du rôle ciblé dans la hiérarchie des rôles Discord
 - Les planifications sont en mémoire (perdues au redémarrage) — pour une persistance, ajoute une base de données
 - Fuseau horaire : **Europe/Paris** (modifiable dans `src/scheduler.js`)
-
-## 📁 Structure
-
-```
-discord-lock-bot/
-├── index.js              # Point d'entrée
-├── src/
-│   ├── bot.js           # Client Discord.js
-│   ├── scheduler.js     # Gestion des cron jobs
-│   └── server.js        # API Express + serveur web
-└── public/
-    ├── index.html       # Dashboard
-    ├── css/style.css    # Styles
-    └── js/app.js        # Logique frontend
-```
