@@ -1,182 +1,104 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- BASE_PATH est injecté ici : vide en local, '/lock' sur VPS -->
-  <meta name="base-path" content="/lock">
-  <title>Discord Lock Bot — Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="base-path" content="/lock">
+    
+    <title>Discord Lock Manager</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
+    <div class="container">
+        <header>
+            <div class="status-bar">
+                <div id="statusPill" class="status-pill"></div>
+                <span id="statusText">Connexion au bot...</span>
+            </div>
+            <h1><i class="fas fa-shield-halved"></i> Discord Lock Manager</h1>
+        </header>
 
-<!-- NOISE OVERLAY -->
-<div class="noise"></div>
+        <main>
+            <section id="serverPanel" class="card" style="display: none;">
+                <div class="server-info">
+                    <div id="serverAvatar" class="avatar"></div>
+                    <div class="details">
+                        <h2 id="serverName">Chargement...</h2>
+                        <div class="stats">
+                            <span id="channelCount">0 channels</span> • 
+                            <span id="roleCount">0 rôles</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-<!-- HEADER -->
-<header>
-  <div class="logo">
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="8" fill="#5865F2"/>
-      <path d="M8 11.5C10.5 10 13 9.5 16 9.5C19 9.5 21.5 10 24 11.5" stroke="white" stroke-width="2" stroke-linecap="round"/>
-      <path d="M8 20.5C10.5 22 13 22.5 16 22.5C19 22.5 21.5 22 24 20.5" stroke="white" stroke-width="2" stroke-linecap="round"/>
-      <circle cx="11.5" cy="16" r="2" fill="white"/>
-      <circle cx="20.5" cy="16" r="2" fill="white"/>
-    </svg>
-    <span class="logo-text">LockBot</span>
-  </div>
+            <section id="immediatePanel" class="card" style="display: none;">
+                <h3><i class="fas fa-bolt"></i> Actions Immédiates</h3>
+                <div class="form-group">
+                    <label>Salons à verrouiller/déverrouiller :</label>
+                    <div id="quickChannels" class="checkbox-group">
+                        </div>
+                </div>
+                <div class="form-group">
+                    <label>Rôle concerné :</label>
+                    <select id="quickRole">
+                        </select>
+                </div>
+                <div class="button-group">
+                    <button onclick="executeAction('lock')" class="btn-lock">
+                        <i class="fas fa-lock"></i> Verrouiller
+                    </button>
+                    <button onclick="executeAction('unlock')" class="btn-unlock">
+                        <i class="fas fa-lock-open"></i> Déverrouiller
+                    </button>
+                </div>
+            </section>
 
-  <div class="status-pill" id="statusPill">
-    <span class="dot"></span>
-    <span id="statusText">Déconnecté</span>
-  </div>
-</header>
+            <section id="schedulePanel" class="card" style="display: none;">
+                <h3><i class="fas fa-clock"></i> Programmer une action</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Heure :</label>
+                        <input type="time" id="schedTime">
+                    </div>
+                    <div class="form-group">
+                        <label>Action :</label>
+                        <select id="schedAction">
+                            <option value="lock">Verrouiller</option>
+                            <option value="unlock">Déverrouiller</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Salons :</label>
+                    <div id="schedChannels" class="checkbox-group">
+                        </div>
+                </div>
+                <div class="form-group">
+                    <label>Rôle :</label>
+                    <select id="schedRole">
+                        </select>
+                </div>
+                <button onclick="scheduleAction()" class="btn-primary">
+                    <i class="fas fa-calendar-plus"></i> Ajouter à la planification
+                </button>
+            </section>
 
-<!-- MAIN -->
-<main>
+            <section id="schedulesListPanel" class="card" style="display: none;">
+                <h3><i class="fas fa-list"></i> Tâches programmées</h3>
+                <div id="schedulesList" class="schedule-items">
+                    </div>
+            </section>
 
-  <!-- CONNEXION PANEL -->
-  <section class="panel" id="connectPanel">
-    <div class="panel-label">01 — CONNEXION</div>
-    <h2>Connecter le bot</h2>
-    <div class="connect-form">
-      <div class="input-group">
-        <label>Token du bot Discord</label>
-        <input type="password" id="botToken" placeholder="MTxxxxxx.xxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
-      </div>
-      <button class="btn btn-primary" onclick="connectBot()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M14 12H3"/></svg>
-        Connecter
-      </button>
-    </div>
-    <div id="connectError" class="error-msg" style="display:none"></div>
-  </section>
-
-  <!-- SERVER INFO -->
-  <section class="panel" id="serverPanel" style="display:none">
-    <div class="panel-label">02 — SERVEUR</div>
-    <div class="server-info">
-      <div class="server-avatar" id="serverAvatar"></div>
-      <div>
-        <h2 id="serverName">—</h2>
-        <div class="server-meta">
-          <span id="channelCount">0 channels</span>
-          <span class="sep">·</span>
-          <span id="roleCount">0 rôles</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- LOCK/UNLOCK IMMÉDIAT -->
-  <section class="panel" id="immediatePanel" style="display:none">
-    <div class="panel-label">03 — ACTION IMMÉDIATE</div>
-    <h2>Lock / Unlock rapide</h2>
-    <p class="hint">Agit immédiatement sur les channels sélectionnés</p>
-
-    <div class="grid-2">
-      <div class="input-group">
-        <label>Rôle ciblé</label>
-        <select id="quickRole">
-          <option value="">— Choisir un rôle —</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label>Message de lock (optionnel)</label>
-        <input type="text" id="quickMessage" placeholder="⏳ Maintenance en cours...">
-      </div>
-    </div>
-
-    <div class="input-group">
-      <label>Channels ciblés</label>
-      <div class="channel-grid" id="quickChannels"></div>
-    </div>
-
-    <div class="action-row">
-      <button class="btn btn-danger" onclick="lockNow()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        Lock maintenant
-      </button>
-      <button class="btn btn-success" onclick="unlockNow()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-        Unlock maintenant
-      </button>
+            <section id="historyPanel" class="card" style="display: none;">
+                <h3><i class="fas fa-history"></i> Historique</h3>
+                <div id="historyList">
+                    </div>
+            </section>
+        </main>
     </div>
 
-    <div id="actionFeedback" class="feedback-msg" style="display:none"></div>
-  </section>
-
-  <!-- PLANIFICATION -->
-  <section class="panel" id="schedulePanel" style="display:none">
-    <div class="panel-label">04 — PLANIFICATION</div>
-    <h2>Nouveau lock planifié</h2>
-
-    <div class="grid-4">
-      <div class="input-group">
-        <label>Jour de la semaine</label>
-        <select id="schedDay">
-          <option value="lundi">Lundi</option>
-          <option value="mardi">Mardi</option>
-          <option value="mercredi">Mercredi</option>
-          <option value="jeudi">Jeudi</option>
-          <option value="vendredi">Vendredi</option>
-          <option value="samedi">Samedi</option>
-          <option value="dimanche">Dimanche</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label>Heure de lock</label>
-        <input type="time" id="schedStart" value="14:00">
-      </div>
-      <div class="input-group">
-        <label>Heure d'unlock</label>
-        <input type="time" id="schedEnd" value="16:00">
-      </div>
-      <div class="input-group">
-        <label>Rôle ciblé</label>
-        <select id="schedRole">
-          <option value="">— Choisir —</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="input-group">
-      <label>Message de lock</label>
-      <input type="text" id="schedMessage" placeholder="🔒 Ce channel est verrouillé de 14h à 16h." value="🔒 Ce channel est temporairement verrouillé.">
-    </div>
-
-    <div class="input-group">
-      <label>Channels ciblés</label>
-      <div class="channel-grid" id="schedChannels"></div>
-    </div>
-
-    <button class="btn btn-primary" onclick="addSchedule()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-      Planifier ce lock
-    </button>
-    <div id="schedError" class="error-msg" style="display:none"></div>
-  </section>
-
-  <!-- LISTE DES PLANIFICATIONS -->
-  <section class="panel" id="schedulesListPanel" style="display:none">
-    <div class="panel-label">05 — PLANIFICATIONS ACTIVES</div>
-    <div class="panel-header-row">
-      <h2>Locks planifiés</h2>
-      <button class="btn btn-ghost btn-sm" onclick="loadSchedules()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.18-3.13"/></svg>
-        Rafraîchir
-      </button>
-    </div>
-    <div id="schedulesList"></div>
-  </section>
-
-</main>
-
-<!-- TOAST -->
-<div id="toast" class="toast"></div>
-
-<script src="js/app.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
