@@ -1,4 +1,4 @@
-// ─── BASE PATH (injecté depuis la balise <meta name="base-path">) ─────────────
+// ─── BASE PATH ────────────────────────────────────────────────────────────────
 const BASE_PATH = document.querySelector('meta[name="base-path"]')?.content || '';
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
@@ -7,7 +7,9 @@ let state = {
   guild: null,
   channels: [],
   roles: [],
-  schedules: []
+  schedules: [],
+  lockedChannels: [],  // IDs des channels verrouillés par le bot
+  history: [],         // Historique des snapshots
 };
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
@@ -29,10 +31,12 @@ function updateStatus(data) {
   const statusText = document.getElementById('statusText');
 
   if (data.connected && data.guild) {
+    const wasConnected = state.connected;
     state.connected = true;
     state.guild = data.guild;
     state.channels = data.channels || [];
     state.roles = data.roles || [];
+    state.lockedChannels = data.lockedChannels || [];
 
     pill.classList.add('connected');
     statusText.textContent = data.guild.name;
@@ -41,6 +45,7 @@ function updateStatus(data) {
     document.getElementById('immediatePanel').style.display = '';
     document.getElementById('schedulePanel').style.display = '';
     document.getElementById('schedulesListPanel').style.display = '';
+    document.getElementById('historyPanel').style.display = '';
 
     document.getElementById('serverName').textContent = data.guild.name;
     document.getElementById('channelCount').textContent = `${data.channels.length} channels`;
@@ -56,6 +61,7 @@ function updateStatus(data) {
     renderRoles('quickRole');
     renderRoles('schedRole');
     loadSchedules();
+    loadHistory();
 
   } else {
     state.connected = false;
@@ -64,10 +70,15 @@ function updateStatus(data) {
   }
 }
 
-// ─── RENDER HELPERS ──────────────────────────────────────────────────────────
+// ─── RENDER CHANNELS ─────────────────────────────────────────────────────────
 function renderChannels(containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
+
+  // Sauvegarde la sélection actuelle
+  const selectedIds = new Set(
+    [...container.querySelectorAll('.channel-item.selected')].map(el => el.dataset.id)
+  );
 
   const grouped = {};
   for (const ch of state.channels) {
@@ -84,13 +95,16 @@ function renderChannels(containerId) {
     container.appendChild(label);
 
     for (const ch of channels) {
+      const isLocked = state.lockedChannels.includes(ch.id);
       const item = document.createElement('div');
-      item.className = 'channel-item';
+      item.className = 'channel-item' +
+        (selectedIds.has(ch.id) ? ' selected' : '') +
+        (isLocked ? ' locked-by-bot' : '');
       item.dataset.id = ch.id;
       item.innerHTML = `
         <span class="channel-hash">#</span>
-        <span class="channel-name">${ch.name}</span>
-        <div class="channel-check"></div>
+        <span class="channel-name">${escapeHtml(ch.name)}</span>
+        ${isLocked ? '<span class="lock-indicator" title="Verrouillé par le bot">🔒</span>' : '<div class="channel-check"></div>'}
       `;
       item.addEventListener('click', () => {
         item.classList.toggle('selected');
@@ -100,9 +114,14 @@ function renderChannels(containerId) {
   }
 }
 
+// ─── RENDER ROLES ─────────────────────────────────────────────────────────────
 function renderRoles(selectId) {
   const select = document.getElementById(selectId);
   if (!select) return;
+
+  // Récupère le rôle actuellement sélectionné ou le dernier rôle mémorisé
+  const savedKey = `lastRole_${selectId}`;
+  const previousValue = select.value || localStorage.getItem(savedKey) || '';
 
   select.innerHTML = '<option value="">— Choisir un rôle —</option>';
   for (const role of state.roles) {
@@ -111,6 +130,20 @@ function renderRoles(selectId) {
     opt.textContent = `@${role.name}`;
     select.appendChild(opt);
   }
+
+  // Restaure la sélection précédente si elle existe toujours
+  if (previousValue) {
+    select.value = previousValue;
+    if (!select.value && previousValue) {
+      // Le rôle n'existe plus, on vide la mémoire
+      localStorage.removeItem(savedKey);
+    }
+  }
+
+  // Mémorise le rôle à chaque changement
+  select.addEventListener('change', () => {
+    if (select.value) localStorage.setItem(savedKey, select.value);
+  });
 }
 
 function getSelectedChannels(containerId) {
@@ -173,6 +206,10 @@ async function lockNow() {
     const ok = data.results.filter(r => r.success).length;
     showFeedback(`🔒 ${ok}/${channelIds.length} channels verrouillés`, true);
     showToast(`🔒 ${ok} channels verrouillés`, 'success');
+
+    // Met à jour l'état des channels verrouillés
+    await pollStatus();
+    await loadHistory();
   } catch (e) {
     showFeedback(`Erreur: ${e.message}`, false);
   }
@@ -197,6 +234,9 @@ async function unlockNow() {
     const ok = data.results.filter(r => r.success).length;
     showFeedback(`🔓 ${ok}/${channelIds.length} channels déverrouillés`, true);
     showToast(`🔓 ${ok} channels déverrouillés`, 'success');
+
+    await pollStatus();
+    await loadHistory();
   } catch (e) {
     showFeedback(`Erreur: ${e.message}`, false);
   }
@@ -209,6 +249,92 @@ function showFeedback(msg, success) {
   el.style.color = success ? 'var(--success)' : 'var(--danger)';
   el.style.borderColor = success ? 'rgba(87,242,135,0.3)' : 'rgba(237,66,69,0.3)';
   el.style.background = success ? 'rgba(87,242,135,0.08)' : 'rgba(237,66,69,0.08)';
+}
+
+// ─── HISTORIQUE & REVERT ──────────────────────────────────────────────────────
+async function loadHistory() {
+  try {
+    const res = await fetch(`${BASE_PATH}/api/history`);
+    const data = await res.json();
+    state.history = data;
+    renderHistory(data);
+  } catch (e) {}
+}
+
+function renderHistory(history) {
+  const container = document.getElementById('historyList');
+  if (!container) return;
+
+  if (history.length === 0) {
+    container.innerHTML = '<div class="empty-state">Aucune modification enregistrée</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+
+  // Affiche du plus récent au plus ancien
+  const sorted = [...history].reverse();
+
+  for (const entry of sorted) {
+    const channelNames = entry.snapshots
+      .map(s => state.channels.find(c => c.id === s.channelId)?.name || s.channelId)
+      .slice(0, 4);
+    const moreChannels = Math.max(0, entry.snapshots.length - 4);
+    const roleName = state.roles.find(r => r.id === entry.roleId)?.name || entry.roleId;
+
+    const card = document.createElement('div');
+    card.className = 'history-card';
+    card.innerHTML = `
+      <div class="history-icon">🔒</div>
+      <div class="history-info">
+        <div class="history-title">
+          <span class="tag tag-role">@${escapeHtml(roleName)}</span>
+          <span class="history-time">${new Date(entry.lockedAt).toLocaleString('fr-FR')}</span>
+        </div>
+        <div class="schedule-tags" style="margin-top:6px;">
+          ${channelNames.map(n => `<span class="tag tag-channel">#${escapeHtml(n)}</span>`).join('')}
+          ${moreChannels > 0 ? `<span class="tag tag-channel">+${moreChannels}</span>` : ''}
+          ${entry.message ? `<span class="tag tag-msg">${escapeHtml(entry.message)}</span>` : ''}
+        </div>
+        <div class="history-before">
+          ${entry.snapshots.map(s => {
+            const chName = state.channels.find(c => c.id === s.channelId)?.name || s.channelId;
+            const beforeLabel = s.before === null ? 'héritage' : s.before ? 'autorisé' : 'refusé';
+            const beforeClass = s.before === null ? 'before-inherit' : s.before ? 'before-allow' : 'before-deny';
+            return `<span class="before-tag ${beforeClass}" title="État avant lock">#${escapeHtml(chName)}: ${beforeLabel}</span>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="history-actions">
+        <button class="btn btn-ghost btn-sm revert-btn" onclick="revertSnapshot('${entry.snapshotId}', this)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+          Annuler
+        </button>
+      </div>
+    `;
+    container.appendChild(card);
+  }
+}
+
+async function revertSnapshot(snapshotId, btn) {
+  if (!confirm('Restaurer les permissions à leur état avant ce lock ?')) return;
+
+  if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
+
+  try {
+    const res = await fetch(`${BASE_PATH}/api/revert/${snapshotId}`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    const ok = data.results.filter(r => r.success).length;
+    showToast(`↩️ ${ok} channel(s) restaurés`, 'success');
+
+    await pollStatus();
+    await loadHistory();
+  } catch (e) {
+    showToast(`Erreur: ${e.message}`, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Annuler'; }
+  }
 }
 
 // ─── PLANIFICATIONS ───────────────────────────────────────────────────────────
@@ -225,7 +351,7 @@ async function addSchedule() {
   if (!roleId) return showError('schedError', 'Veuillez choisir un rôle');
   if (!channelIds.length) return showError('schedError', 'Sélectionnez au moins un channel');
   if (!startTime || !endTime) return showError('schedError', 'Heures invalides');
-  if (startTime >= endTime) return showError('schedError', 'L\'heure de lock doit être avant l\'heure d\'unlock');
+  if (startTime >= endTime) return showError('schedError', "L'heure de lock doit être avant l'heure d'unlock");
 
   try {
     const res = await fetch(`${BASE_PATH}/api/schedules`, {
@@ -281,8 +407,8 @@ function renderSchedules(schedules) {
       <div class="schedule-info">
         <h3>${capitalize(s.day)} · ${s.startTime} → ${s.endTime}</h3>
         <div class="schedule-tags">
-          <span class="tag tag-role">@${roleName}</span>
-          ${channelNames.map(n => `<span class="tag tag-channel">#${n}</span>`).join('')}
+          <span class="tag tag-role">@${escapeHtml(roleName)}</span>
+          ${channelNames.map(n => `<span class="tag tag-channel">#${escapeHtml(n)}</span>`).join('')}
           ${moreChannels > 0 ? `<span class="tag tag-channel">+${moreChannels}</span>` : ''}
           <span class="tag tag-msg">${escapeHtml(s.lockMessage)}</span>
         </div>
@@ -355,5 +481,6 @@ function capitalize(str) {
 }
 
 function escapeHtml(str) {
+  if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

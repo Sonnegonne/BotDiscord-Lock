@@ -1,7 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { connectBot, lockChannels, unlockChannels, getStatus, refreshGuildData } = require('./bot');
+const {
+  connectBot,
+  lockChannels,
+  unlockChannels,
+  revertSnapshot,
+  getPermissionHistory,
+  getStatus,
+  refreshGuildData,
+} = require('./bot');
 const { createSchedule, deleteSchedule, toggleSchedule, getSchedules } = require('./scheduler');
 
 const app = express();
@@ -9,11 +17,8 @@ app.use(cors());
 app.use(express.json());
 
 // ─── BASE PATH ────────────────────────────────────────────────────────────────
-// En local : BASE_PATH='' (défaut)
-// Sur VPS  : BASE_PATH='/lock'
 const BASE_PATH = process.env.BASE_PATH || '/lock';
 
-// Sert les fichiers statiques sous /lock/css, /lock/js, etc.
 app.use(`${BASE_PATH}`, express.static(path.join(__dirname, '../public')));
 
 // ─── STATUS ───────────────────────────────────────────────────────────────────
@@ -49,8 +54,8 @@ app.post(`${BASE_PATH}/api/lock-now`, async (req, res) => {
   }
 
   try {
-    const results = await lockChannels(channelIds, roleId, message);
-    res.json({ success: true, results });
+    const { results, snapshotId } = await lockChannels(channelIds, roleId, message);
+    res.json({ success: true, results, snapshotId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -64,10 +69,25 @@ app.post(`${BASE_PATH}/api/unlock-now`, async (req, res) => {
   }
 
   try {
-    const results = await unlockChannels(channelIds, roleId);
+    const { results } = await unlockChannels(channelIds, roleId);
     res.json({ success: true, results });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── HISTORIQUE DES MODIFICATIONS ────────────────────────────────────────────
+app.get(`${BASE_PATH}/api/history`, (req, res) => {
+  res.json(getPermissionHistory());
+});
+
+// ─── ANNULER UN SNAPSHOT (revert) ─────────────────────────────────────────────
+app.post(`${BASE_PATH}/api/revert/:snapshotId`, async (req, res) => {
+  try {
+    const { results } = await revertSnapshot(req.params.snapshotId);
+    res.json({ success: true, results });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 
@@ -103,7 +123,7 @@ app.patch(`${BASE_PATH}/api/schedules/:id/toggle`, (req, res) => {
   }
 });
 
-// ─── SERVE DASHBOARD (catch-all sous /lock) ───────────────────────────────────
+// ─── SERVE DASHBOARD ─────────────────────────────────────────────────────────
 app.get(`${BASE_PATH}`, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
