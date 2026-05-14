@@ -1,3 +1,7 @@
+// ─── BASE PATH ──────────────────────────────────────────────────────────────
+const BASE = document.querySelector('meta[name="base-path"]')?.content || '';
+function api(path) { return `${BASE}${path}`; }
+
 // ─── STATE ──────────────────────────────────────────────────────────────────
 let state = {
   connected: false,
@@ -19,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function pollStatus() {
   try {
-    const res = await fetch('/api/status');
+    const res = await fetch(api('/api/status'));
     const data = await res.json();
     updateStatus(data);
   } catch (e) {}
@@ -147,7 +151,7 @@ async function connectBot() {
   hideError('connectError');
 
   try {
-    const res = await fetch('/api/connect', {
+    const res = await fetch(api('/api/connect'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token })
@@ -168,7 +172,7 @@ async function saveDefaultRole() {
   const roleId = document.getElementById('defaultRoleSelect').value;
   if (!roleId) return showError('defaultRoleSaved', 'Veuillez choisir un rôle');
   try {
-    const res = await fetch('/api/default-role', {
+    const res = await fetch(api('/api/default-role'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roleId })
     });
@@ -193,7 +197,7 @@ async function lockAll() {
   if (!confirm(`Verrouiller TOUS les channels pour @${roleName} ?`)) return;
   showToast('⏳ Verrouillage en cours...', '');
   try {
-    const res = await fetch('/api/lock-all', {
+    const res = await fetch(api('/api/lock-all'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message })
     });
@@ -209,7 +213,7 @@ async function unlockAll(restoreInitial) {
   if (!confirm(restoreInitial ? 'Restaurer l\'état initial de tous les channels ?' : 'Déverrouiller tous les channels ?')) return;
   showToast('⏳ Restauration en cours...', '');
   try {
-    const res = await fetch('/api/unlock-all', {
+    const res = await fetch(api('/api/unlock-all'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ restoreInitial })
     });
@@ -225,7 +229,7 @@ async function unlockAll(restoreInitial) {
 // ─── ÉTAT DES CHANNELS ───────────────────────────────────────────────────────
 async function loadChannelStates() {
   try {
-    const res = await fetch('/api/channel-states');
+    const res = await fetch(api('/api/channel-states'));
     state.channelStates = await res.json();
     renderChannelStates();
   } catch (e) {}
@@ -266,7 +270,7 @@ function renderChannelStates() {
 
 async function unlockSingle(channelId, roleId, restoreInitial) {
   try {
-    const res = await fetch('/api/unlock-now', {
+    const res = await fetch(api('/api/unlock-now'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ channelIds: [channelId], roleId, restoreInitial })
     });
@@ -286,7 +290,7 @@ async function lockNow() {
   if (!roleId) return showFeedback('Veuillez choisir un rôle', false);
   if (!channelIds.length) return showFeedback('Veuillez sélectionner au moins un channel', false);
   try {
-    const res = await fetch('/api/lock-now', {
+    const res = await fetch(api('/api/lock-now'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ channelIds, roleId, message })
     });
@@ -306,7 +310,7 @@ async function unlockNow(restoreInitial) {
   if (!roleId) return showFeedback('Veuillez choisir un rôle', false);
   if (!channelIds.length) return showFeedback('Veuillez sélectionner au moins un channel', false);
   try {
-    const res = await fetch('/api/unlock-now', {
+    const res = await fetch(api('/api/unlock-now'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ channelIds, roleId, restoreInitial })
     });
@@ -331,7 +335,7 @@ function showFeedback(msg, success) {
 // ─── SECTIONS ────────────────────────────────────────────────────────────────
 async function loadSectionStates() {
   try {
-    const res = await fetch('/api/sections');
+    const res = await fetch(api('/api/sections'));
     state.sectionStates = await res.json();
     updateSectionToggles();
   } catch (e) {}
@@ -358,7 +362,7 @@ function updateSectionToggles() {
 
 async function toggleSection(section) {
   try {
-    const res = await fetch(`/api/sections/${section}/toggle`, { method: 'PATCH' });
+    const res = await fetch(api(`/api/sections/${section}/toggle`), { method: 'PATCH' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     state.sectionStates[section] = data.active;
@@ -386,7 +390,7 @@ async function addSchedule() {
   if (startTime >= endTime) return showError('schedError', 'L\'heure de lock doit être avant l\'heure d\'unlock');
 
   try {
-    const res = await fetch('/api/schedules', {
+    const res = await fetch(api('/api/schedules'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ day, startTime, endTime, channelIds, roleId, lockMessage, section })
     });
@@ -400,7 +404,7 @@ async function addSchedule() {
 
 async function loadSchedules() {
   try {
-    const res = await fetch('/api/schedules');
+    const res = await fetch(api('/api/schedules'));
     state.schedules = await res.json();
     renderSchedules();
   } catch (e) {}
@@ -575,7 +579,7 @@ async function saveEditModal(scheduleId) {
   if (startTime >= endTime) return showError('editError', 'L\'heure de lock doit être avant l\'heure d\'unlock');
 
   try {
-    const res = await fetch(`/api/schedules/${scheduleId}`, {
+    const res = await fetch(api(`/api/schedules/${scheduleId}`), {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ day, startTime, endTime, channelIds, roleId, lockMessage, section })
     });
@@ -589,7 +593,7 @@ async function saveEditModal(scheduleId) {
 
 async function toggleSchedule(id) {
   try {
-    const res = await fetch(`/api/schedules/${id}/toggle`, { method: 'PATCH' });
+    const res = await fetch(api(`/api/schedules/${id}/toggle`), { method: 'PATCH' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     showToast(data.schedule.active ? '▶ Planification activée' : '⏸ Planification désactivée', 'success');
@@ -600,7 +604,7 @@ async function toggleSchedule(id) {
 async function deleteSchedule(id) {
   if (!confirm('Supprimer cette planification ?')) return;
   try {
-    const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+    const res = await fetch(api(`/api/schedules/${id}`), { method: 'DELETE' });
     if (!res.ok) throw new Error('Erreur suppression');
     showToast('🗑 Planification supprimée', 'success');
     loadSchedules();
