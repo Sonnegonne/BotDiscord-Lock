@@ -16,8 +16,16 @@ let channelStates = {};
 const TICKET_CATEGORY_KEYWORDS = ['ticket', 'tickets'];
 
 function isTicketChannel(channel) {
+  // Cherche d'abord dans le cache, sinon dans le parentId du channel
   const parentName = (channel.parent?.name || '').toLowerCase();
-  return TICKET_CATEGORY_KEYWORDS.some(kw => parentName.includes(kw));
+  if (parentName) return TICKET_CATEGORY_KEYWORDS.some(kw => parentName.includes(kw));
+  // Fallback : cherche la categorie par parentId dans le cache du guild
+  if (channel.parentId && channel.guild) {
+    const parent = channel.guild.channels.cache.get(channel.parentId);
+    const fallbackName = (parent?.name || '').toLowerCase();
+    return TICKET_CATEGORY_KEYWORDS.some(kw => fallbackName.includes(kw));
+  }
+  return false;
 }
 
 function createClient() {

@@ -34,6 +34,8 @@ function updateStatus(data) {
   const statusText = document.getElementById('statusText');
 
   if (data.connected && data.guild) {
+    const firstConnect = !state.connected;
+
     state.connected = true;
     state.guild = data.guild;
     state.channels = data.channels || [];
@@ -57,24 +59,28 @@ function updateStatus(data) {
     const avatar = document.getElementById('serverAvatar');
     if (data.guild.icon) avatar.style.backgroundImage = `url(${data.guild.icon})`;
 
-    renderChannels('quickChannels');
-    renderChannels('schedChannels');
-    renderRoles('quickRole');
-    renderRoles('schedRole');
-    renderRoles('defaultRoleSelect');
+    // Ne reconstruire les grilles qu'a la premiere connexion
+    // pour ne pas effacer la selection en cours lors des polls suivants
+    if (firstConnect) {
+      renderChannels('quickChannels');
+      renderChannels('schedChannels');
+      renderRoles('quickRole');
+      renderRoles('schedRole');
+      renderRoles('defaultRoleSelect');
 
-    if (state.defaultRoleId) {
-      document.getElementById('defaultRoleSelect').value = state.defaultRoleId;
-      document.getElementById('quickRole').value = state.defaultRoleId;
+      if (state.defaultRoleId) {
+        document.getElementById('defaultRoleSelect').value = state.defaultRoleId;
+        document.getElementById('quickRole').value = state.defaultRoleId;
+      }
+
+      loadSchedules();
+      loadChannelStates();
+      loadSectionStates();
     }
-
-    loadSchedules();
-    loadChannelStates();
-    loadSectionStates();
   } else {
     state.connected = false;
     pill.classList.remove('connected');
-    statusText.textContent = 'Déconnecté';
+    statusText.textContent = 'Déconnecte';
   }
 }
 
