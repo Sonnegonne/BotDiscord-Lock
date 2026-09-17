@@ -1,0 +1,263 @@
+{
+ "guild": {
+  "id": "100000000000001000",
+  "name": "Serveur de classe",
+  "icon": null
+ },
+ "roles": [
+  {
+   "id": "100000000000001010",
+   "name": "💻 ADMIN",
+   "color": "#30f187"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "DraftBot",
+   "color": "#000000"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "Elève Booster",
+   "color": "#95a5a6"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "3TIN",
+   "color": "#1f8b4c"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "Non vérifié 3TIN",
+   "color": "#ff0000"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "John-Bot",
+   "color": "#000000"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "💻 Professeur",
+   "color": "#f1c40f"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "👑 Moderation",
+   "color": "#dea548"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "En cours de jugement",
+   "color": "#71368a"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "👮 Juge",
+   "color": "#ff8000"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "Antécédent",
+   "color": "#000000"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "Banni",
+   "color": "#510505"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "DachGuard",
+   "color": "#000000"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "4TIN",
+   "color": "#2ecc71"
+  },
+  {
+   "id": "100000000000001010",
+   "name": "Non vérifié 4TIN",
+   "color": "#ff0000"
+  },
+  {
+   "id": "100000000000001020",
+   "name": "ProBot",
+   "color": "#000000"
+  },
+  {
+   "id": "100000000000001020",
+   "name": "Délégué 4TIN",
+   "color": "#000000"
+  },
+  {
+   "id": "100000000000001020",
+   "name": "Délégués 3TIN",
+   "color": "#000000"
+  }
+ ],
+ "channels": [
+  {
+   "id": "100000000000001020",
+   "name": "aide-info-inter-années",
+   "parentName": "🎮 | SALONS TEXTUELS GÉNÉRAL",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001020",
+   "name": "aide-inter-années",
+   "parentName": "🎮 | SALONS TEXTUELS GÉNÉRAL",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001020",
+   "name": "général-global",
+   "parentName": "🎮 | SALONS TEXTUELS GÉNÉRAL",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001020",
+   "name": "général-inter-années",
+   "parentName": "🎮 | SALONS TEXTUELS GÉNÉRAL",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001020",
+   "name": "00100011",
+   "parentName": "👑 | Modération",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001020",
+   "name": "discussion-modération",
+   "parentName": "👑 | Modération",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001020",
+   "name": "tribunal-banni",
+   "parentName": "👑 | Modération",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001020",
+   "name": "devoir-et-interrogation-4tin",
+   "parentName": "💻 | Communication (4ème)",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001020",
+   "name": "horaire-4tin",
+   "parentName": "💻 | Communication (4ème)",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001020",
+   "name": "journal-de-classe-4tin",
+   "parentName": "💻 | Communication (4ème)",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001020",
+   "name": "général-4tti",
+   "parentName": "💻 | SALONS TEXTUELS (4ème)",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001020",
+   "name": "questions-réponse-4tti",
+   "parentName": "💻 | SALONS TEXTUELS (4ème)",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001020",
+   "name": "devoir-et-interrogation-3tin",
+   "parentName": "💽 | Communication (3ème)",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001020",
+   "name": "horaire-3tin",
+   "parentName": "💽 | Communication (3ème)",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001040",
+   "name": "journal-de-classe-3tin",
+   "parentName": "💽 | Communication (3ème)",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001040",
+   "name": "général",
+   "parentName": "💽 | SALONS TEXTUELS (3ème)",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001040",
+   "name": "question-réponse",
+   "parentName": "💽 | SALONS TEXTUELS (3ème)",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001040",
+   "name": "question-réponse-info",
+   "parentName": "💽 | SALONS TEXTUELS (3ème)",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001040",
+   "name": "arrivé-et-départ",
+   "parentName": "Arrivé et départ",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001040",
+   "name": "log-complet",
+   "parentName": "logs",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001040",
+   "name": "logs-tickets",
+   "parentName": "logs",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001040",
+   "name": "sanctions-log",
+   "parentName": "logs",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001040",
+   "name": "📜règles-3tti",
+   "parentName": "Règlement",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001040",
+   "name": "📜règles-4tti",
+   "parentName": "Règlement",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001040",
+   "name": "choix-de-présence",
+   "parentName": "Règlement",
+   "isTicket": false
+  },
+  {
+   "id": "100000000000001040",
+   "name": "demande-equipe-moderation",
+   "parentName": "Ticket",
+   "isTicket": true
+  },
+  {
+   "id": "100000000000001040",
+   "name": "demandes-de-tickets",
+   "parentName": "Ticket",
+   "isTicket": true
+  }
+ ]
+}

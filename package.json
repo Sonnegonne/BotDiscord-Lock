@@ -1,18 +1,19 @@
 {
-  "name": "discord-lock-bot",
-  "version": "1.0.0",
-  "description": "",
+  "name": "dachguard",
+  "version": "2.0.0",
+  "description": "Bot Discord + dashboard pour ouvrir et fermer les salons d'un serveur de classe, a la main ou selon l'horaire",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "dev": "node index.js",
+    "test": "node test/run.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["discord", "moderation", "school"],
+  "author": "Songon",
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.6",
     "discord.js": "^14.26.2",
-    "express": "^5.2.1",
-    "node-cron": "^4.2.1"
+    "express": "^5.2.1"
   }
 }

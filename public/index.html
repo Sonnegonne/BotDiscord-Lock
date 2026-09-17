@@ -1,305 +1,341 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="base-path" content="/lock">
-  <title>Discord Lock Bot — Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="base-path" content="/lock">
+<meta name="theme-color" content="#0a0a0e">
+<title>DachGuard — pilotage des salons</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235865F2'/%3E%3Cpath d='M11 14v-2a5 5 0 0110 0v2' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Crect x='9' y='14' width='14' height='10' rx='2.5' fill='white'/%3E%3C/svg%3E">
 </head>
 <body>
-
 <div class="noise"></div>
 
-<!-- HEADER -->
-<header>
-  <div class="logo">
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="8" fill="#5865F2"/>
-      <path d="M8 11.5C10.5 10 13 9.5 16 9.5C19 9.5 21.5 10 24 11.5" stroke="white" stroke-width="2" stroke-linecap="round"/>
-      <path d="M8 20.5C10.5 22 13 22.5 16 22.5C19 22.5 21.5 22 24 20.5" stroke="white" stroke-width="2" stroke-linecap="round"/>
-      <circle cx="11.5" cy="16" r="2" fill="white"/>
-      <circle cx="20.5" cy="16" r="2" fill="white"/>
-    </svg>
-    <span class="logo-text">LockBot</span>
-  </div>
-  <div class="status-pill" id="statusPill">
-    <span class="dot"></span>
-    <span id="statusText">Déconnecté</span>
-  </div>
-</header>
+<div class="shell">
 
-<main>
-
-  <!-- 01 — CONNEXION -->
-  <section class="panel" id="connectPanel">
-    <div class="panel-label">01 — CONNEXION</div>
-    <h2>Connecter le bot</h2>
-    <div class="connect-form">
-      <div class="input-group">
-        <label>Token du bot Discord</label>
-        <input type="password" id="botToken" placeholder="MTxxxxxx.xxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+  <!-- ─── BARRE LATÉRALE ─────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round">
+          <path d="M8 11V7a4 4 0 0 1 8 0v4"/><rect x="5" y="11" width="14" height="10" rx="2.5" fill="#fff" stroke="none"/>
+        </svg>
       </div>
-      <button class="btn btn-primary" onclick="connectBot()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M14 12H3"/></svg>
-        Connecter
-      </button>
-    </div>
-    <div id="connectError" class="error-msg" style="display:none"></div>
-  </section>
-
-  <!-- 02 — SERVEUR -->
-  <section class="panel" id="serverPanel" style="display:none">
-    <div class="panel-label">02 — SERVEUR</div>
-    <div class="server-info">
-      <div class="server-avatar" id="serverAvatar"></div>
       <div>
-        <h2 id="serverName">—</h2>
-        <div class="server-meta">
-          <span id="channelCount">0 channels</span>
-          <span class="sep">·</span>
-          <span id="roleCount">0 rôles</span>
+        <div class="brand-name">DachGuard</div>
+        <div class="brand-sub">salons sous contrôle</div>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <button class="nav-item active" data-view="dashboard">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        <span class="txt">Tableau de bord</span>
+        <span class="badge hidden" id="navLockedBadge">0</span>
+      </button>
+      <button class="nav-item" data-view="lock">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2.5"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span class="txt">Verrouillage</span>
+      </button>
+      <button class="nav-item" data-view="planning">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 3v3M16 3v3"/></svg>
+        <span class="txt">Planning</span>
+      </button>
+      <button class="nav-item" data-view="classes">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-5 9 5-9 5-9-5z"/><path d="M7 11.5V16c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5v-4.5"/></svg>
+        <span class="txt">Classes</span>
+      </button>
+      <button class="nav-item" data-view="journal">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+        <span class="txt">Journal</span>
+      </button>
+      <button class="nav-item" data-view="reglages">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7.5 19.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 15.4H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 8.5l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10 4.6V4a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.5 1.4l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+        <span class="txt">Réglages</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="server-card">
+        <div class="server-avatar" id="serverAvatar">?</div>
+        <div class="meta">
+          <div class="nm" id="serverName">Non connecté</div>
+          <div class="st"><span class="dot off" id="statusDot"></span><span id="statusText">hors ligne</span></div>
         </div>
       </div>
     </div>
-  </section>
+  </aside>
 
-  <!-- 03 — RÔLE PAR DÉFAUT -->
-  <section class="panel" id="defaultRolePanel" style="display:none">
-    <div class="panel-label">03 — RÔLE PAR DÉFAUT</div>
-    <h2>Rôle principal géré</h2>
-    <p class="hint">Ce rôle est utilisé pour les actions globales (verrouiller tout, déverrouiller tout).</p>
+  <!-- ─── CONTENU ────────────────────────────────────────────────────── -->
+  <main class="main"><div class="page">
 
-    <div class="default-role-row">
-      <div class="input-group" style="flex:1;margin-bottom:0">
-        <label>Rôle par défaut</label>
-        <select id="defaultRoleSelect"><option value="">— Choisir un rôle —</option></select>
+    <div id="globalBanner"></div>
+
+    <!-- TABLEAU DE BORD -->
+    <section class="view active" id="view-dashboard">
+      <div class="page-head">
+        <div>
+          <h1>Tableau de bord</h1>
+          <p>L'état des salons en un coup d'œil, et les gestes du quotidien à portée de clic.</p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-ghost btn-sm" onclick="App.refreshNow()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+            Actualiser
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="App.panic()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+            Tout fermer
+          </button>
+        </div>
       </div>
-      <button class="btn btn-primary" onclick="saveDefaultRole()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        Enregistrer
-      </button>
-    </div>
-    <div id="defaultRoleSaved" class="feedback-msg" style="display:none"></div>
 
-    <div class="global-actions">
-      <div class="global-action-card">
-        <div class="global-action-info">
-          <div class="global-action-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            Verrouiller tout
+      <div class="grid grid-stats" id="statTiles"></div>
+
+      <div class="card-head mt" style="margin-bottom:10px">
+        <h2>Classes</h2>
+        <span class="sub" id="classesHint"></span>
+      </div>
+      <div class="grid grid-classes" id="classCards"></div>
+
+      <div class="grid grid-2 mt">
+        <div class="card">
+          <div class="card-head"><h2>Prochaines échéances</h2></div>
+          <div id="nextEvents"></div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Activité récente</h2>
+            <button class="btn btn-ghost btn-sm" onclick="App.go('journal')">Tout voir</button>
           </div>
-          <div class="global-action-desc">Lock tous les channels textuels avec le rôle par défaut</div>
+          <div id="recentActivity"></div>
         </div>
-        <div class="global-action-controls">
-          <input type="text" id="lockAllMessage" placeholder="Message de lock (optionnel)..." style="width:240px">
-          <button class="btn btn-danger" onclick="lockAll()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            Tout verrouiller
-          </button>
+      </div>
+    </section>
+
+    <!-- VERROUILLAGE -->
+    <section class="view" id="view-lock">
+      <div class="page-head">
+        <div>
+          <h1>Verrouillage</h1>
+          <p>Choisissez des salons et des rôles, puis fermez ou rouvrez. Les tickets sont masqués, les autres salons passent en lecture seule.</p>
         </div>
       </div>
 
-      <div class="global-action-card">
-        <div class="global-action-info">
-          <div class="global-action-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-            Restaurer l'état initial
+      <div class="grid" style="grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr)">
+        <div class="card">
+          <div class="card-head">
+            <h2>Salons</h2>
+            <span class="sub" id="lockSelCount">0 sélectionné</span>
           </div>
-          <div class="global-action-desc">Remet les permissions exactement comme avant le lock</div>
-        </div>
-        <div class="global-action-controls">
-          <button class="btn btn-success" onclick="unlockAll(true)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-            Restaurer
-          </button>
-          <button class="btn btn-ghost" onclick="unlockAll(false)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-            Déverrouiller (simple)
-          </button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 04 — ÉTAT DES CHANNELS -->
-  <section class="panel" id="channelStatesPanel" style="display:none">
-    <div class="panel-label">04 — ÉTAT DES CHANNELS</div>
-    <div class="panel-header-row">
-      <h2>Channels modifiés par le bot</h2>
-      <button class="btn btn-ghost btn-sm" onclick="loadChannelStates()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.18-3.13"/></svg>
-        Rafraîchir
-      </button>
-    </div>
-    <div id="channelStatesList"></div>
-  </section>
-
-  <!-- 05 — ACTION IMMÉDIATE -->
-  <section class="panel" id="immediatePanel" style="display:none">
-    <div class="panel-label">05 — ACTION IMMÉDIATE</div>
-    <h2>Lock / Unlock rapide</h2>
-    <p class="hint">Agit immédiatement sur les channels sélectionnés. Les channels 🎫 (Tickets) sont gérés via la permission "Voir le salon".</p>
-
-    <div class="grid-2">
-      <div class="input-group">
-        <label>Rôle ciblé</label>
-        <select id="quickRole"><option value="">— Choisir un rôle —</option></select>
-      </div>
-      <div class="input-group">
-        <label>Message de lock (optionnel — vide = pas de notification)</label>
-        <input type="text" id="quickMessage" placeholder="⏳ Maintenance en cours...">
-      </div>
-    </div>
-
-    <div class="input-group">
-      <label>Channels ciblés</label>
-      <div class="channel-grid" id="quickChannels"></div>
-    </div>
-
-    <div class="action-row">
-      <button class="btn btn-danger" onclick="lockNow()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        Lock maintenant
-      </button>
-      <button class="btn btn-success" onclick="unlockNow(false)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-        Unlock maintenant
-      </button>
-      <button class="btn btn-ghost" onclick="unlockNow(true)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-        Restaurer état initial
-      </button>
-    </div>
-    <div id="actionFeedback" class="feedback-msg" style="display:none"></div>
-  </section>
-
-  <!-- 06 — PLANIFICATION -->
-  <section class="panel" id="schedulePanel" style="display:none">
-    <div class="panel-label">06 — PLANIFICATION</div>
-    <h2>Nouveau lock planifié</h2>
-
-    <div class="grid-4">
-      <div class="input-group">
-        <label>Jour de la semaine</label>
-        <select id="schedDay">
-          <option value="lundi">Lundi</option>
-          <option value="mardi">Mardi</option>
-          <option value="mercredi">Mercredi</option>
-          <option value="jeudi">Jeudi</option>
-          <option value="vendredi">Vendredi</option>
-          <option value="samedi">Samedi</option>
-          <option value="dimanche">Dimanche</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label>Heure de lock</label>
-        <input type="time" id="schedStart" value="14:00">
-      </div>
-      <div class="input-group">
-        <label>Heure d'unlock</label>
-        <input type="time" id="schedEnd" value="16:00">
-      </div>
-      <div class="input-group">
-        <label>Rôle ciblé</label>
-        <select id="schedRole"><option value="">— Choisir —</option></select>
-      </div>
-    </div>
-
-    <div class="grid-2">
-      <div class="input-group">
-        <label>Section</label>
-        <select id="schedSection">
-          <option value="vie_privee">🏠 Vie privée</option>
-          <option value="cours">📚 Cours</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label>Message de lock (optionnel — vide = pas de notification)</label>
-        <input type="text" id="schedMessage" placeholder="🔒 Ce channel est verrouillé de 14h à 16h.">
-      </div>
-    </div>
-
-    <div class="input-group">
-      <label>Channels ciblés</label>
-      <div class="channel-grid" id="schedChannels"></div>
-    </div>
-
-    <button class="btn btn-primary" onclick="addSchedule()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-      Planifier ce lock
-    </button>
-    <div id="schedError" class="error-msg" style="display:none"></div>
-  </section>
-
-  <!-- 07 — PLANIFICATIONS ACTIVES -->
-  <section class="panel" id="schedulesListPanel" style="display:none">
-    <div class="panel-label">07 — PLANIFICATIONS ACTIVES</div>
-    <div class="panel-header-row">
-      <h2>Locks planifiés</h2>
-      <button class="btn btn-ghost btn-sm" onclick="loadSchedules()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.18-3.13"/></svg>
-        Rafraîchir
-      </button>
-    </div>
-
-    <!-- Section Vie privée -->
-    <div class="section-block">
-      <div class="section-header">
-        <div class="section-header-left">
-          <div class="section-icon section-icon-vie">🏠</div>
-          <div>
-            <div class="section-title">Vie privée</div>
-            <div class="section-count" id="sectionCount_vie_privee">— planifications</div>
+          <div class="picker">
+            <div class="picker-bar">
+              <input type="text" id="lockSearch" placeholder="Rechercher un salon…" oninput="App.renderLockChannels()">
+              <div class="wrap" id="lockFilters"></div>
+            </div>
+            <div class="picker-list" id="lockChannels"></div>
           </div>
         </div>
-        <div class="section-header-right">
-          <span class="section-pill section-pill-on" id="sectionPill_vie_privee">Actif</span>
-          <button class="section-toggle section-toggle-on" id="sectionToggle_vie_privee" onclick="toggleSection('vie_privee')">
-            <div class="switch-track"><div class="switch-thumb"></div></div>
-            <span class="toggle-label">ON</span>
+
+        <div class="card" style="align-self:start">
+          <div class="card-head"><h2>Action</h2></div>
+
+          <div class="field">
+            <label>Rôles concernés</label>
+            <div class="role-picker" id="lockRoles"></div>
+            <div class="help" id="lockRoleHint"></div>
+          </div>
+
+          <div class="field">
+            <label>Message affiché dans le salon</label>
+            <input type="text" id="lockMessage" placeholder="Laisser vide pour le message par défaut">
+            <div class="help">Écrivez <span class="mono">-</span> pour ne rien annoncer du tout.</div>
+          </div>
+
+          <div class="row mt">
+            <div class="field" style="margin-top:0">
+              <label>Mode</label>
+              <select id="lockMode">
+                <option value="auto">Auto (recommandé)</option>
+                <option value="write">Lecture seule</option>
+                <option value="hide">Masquer le salon</option>
+              </select>
+            </div>
+            <div class="field" style="margin-top:0">
+              <label>Durée (min)</label>
+              <input type="number" id="lockDuration" min="1" max="1440" placeholder="illimité">
+            </div>
+          </div>
+
+          <div class="wrap mt-sm">
+            <button class="chip chip-btn" onclick="App.setDuration(50)">50 min</button>
+            <button class="chip chip-btn" onclick="App.setDuration(100)">100 min</button>
+            <button class="chip chip-btn" onclick="App.setDuration(null)">illimité</button>
+          </div>
+
+          <div class="mt" style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn btn-danger btn-block" onclick="App.lockNow()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2.5"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Fermer les salons
+            </button>
+            <button class="btn btn-success btn-block" onclick="App.unlockNow()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2.5"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+              Rouvrir (état initial)
+            </button>
+            <div class="row">
+              <button class="btn btn-ghost btn-sm" onclick="App.unlockNow('clear')">Rouvrir sans restaurer</button>
+              <button class="btn btn-ghost btn-sm" onclick="App.diagnose()">Vérifier les fuites</button>
+            </div>
+          </div>
+
+          <div id="diagnoseOut" class="mt"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLANNING -->
+    <section class="view" id="view-planning">
+      <div class="page-head">
+        <div>
+          <h1>Planning</h1>
+          <p>Les créneaux se rejouent tout seuls chaque semaine. Un redémarrage du serveur ne les perd plus : l'état est recalculé au réveil.</p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary btn-sm" onclick="App.openSchedule()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Nouvelle planification
           </button>
         </div>
       </div>
-      <div class="section-body" id="sectionBody_vie_privee">
-        <div id="schedules_vie_privee">
-          <div class="empty-state">Aucune planification dans cette section</div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>La semaine</h2>
+          <span class="sub" id="weekHint"></span>
+        </div>
+        <div id="weekGrid"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Créneaux</h2><span class="sub" id="schedCount"></span></div>
+        <div id="schedList"></div>
+      </div>
+    </section>
+
+    <!-- CLASSES -->
+    <section class="view" id="view-classes">
+      <div class="page-head">
+        <div>
+          <h1>Classes</h1>
+          <p>Une classe regroupe des rôles et des salons. Tout le reste — verrouillage, planning, commandes Discord — s'appuie dessus.</p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-ghost btn-sm" onclick="App.detectGroups()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="3.5"/></svg>
+            Détection automatique
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="App.openGroup()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Nouvelle classe
+          </button>
         </div>
       </div>
-    </div>
+      <div class="grid grid-classes" id="groupCards"></div>
+    </section>
 
-    <!-- Section Cours -->
-    <div class="section-block">
-      <div class="section-header">
-        <div class="section-header-left">
-          <div class="section-icon section-icon-cours">📚</div>
-          <div>
-            <div class="section-title">Cours</div>
-            <div class="section-count" id="sectionCount_cours">— planifications</div>
+    <!-- JOURNAL -->
+    <section class="view" id="view-journal">
+      <div class="page-head">
+        <div>
+          <h1>Journal</h1>
+          <p>Tout ce que le bot a fait, et pourquoi : à la main, par planning, par minuteur ou par commande Discord.</p>
+        </div>
+      </div>
+      <div class="card"><div class="feed" id="journalFeed"></div></div>
+    </section>
+
+    <!-- RÉGLAGES -->
+    <section class="view" id="view-reglages">
+      <div class="page-head">
+        <div>
+          <h1>Réglages</h1>
+          <p>Connexion du bot, comportement des verrous et salons à ne jamais toucher.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Connexion Discord</h2></div>
+        <div id="connectionBox"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Comportement</h2></div>
+        <div class="field">
+          <label>Message par défaut à l'ouverture d'un verrou</label>
+          <input type="text" id="setDefaultMessage">
+        </div>
+        <div class="row mt">
+          <div class="field" style="margin-top:0">
+            <label>Fuseau horaire</label>
+            <select id="setTimezone">
+              <option value="Europe/Brussels">Europe/Brussels</option>
+              <option value="Europe/Paris">Europe/Paris</option>
+              <option value="UTC">UTC</option>
+            </select>
           </div>
         </div>
-        <div class="section-header-right">
-          <span class="section-pill section-pill-on" id="sectionPill_cours">Actif</span>
-          <button class="section-toggle section-toggle-on" id="sectionToggle_cours" onclick="toggleSection('cours')">
-            <div class="switch-track"><div class="switch-thumb"></div></div>
-            <span class="toggle-label">ON</span>
-          </button>
+        <div class="mt" style="display:flex;flex-direction:column;gap:11px">
+          <label class="switch"><input type="checkbox" id="setStrict"><span class="track"></span>
+            <span class="lbl">Mode strict — bloque aussi les fils de discussion et les réactions</span></label>
+          <label class="switch"><input type="checkbox" id="setAnnounceLock"><span class="track"></span>
+            <span class="lbl">Annoncer la fermeture dans le salon</span></label>
+          <label class="switch"><input type="checkbox" id="setAnnounceUnlock"><span class="track"></span>
+            <span class="lbl">Annoncer la réouverture (message effacé après 1 min)</span></label>
+          <label class="switch"><input type="checkbox" id="setSlash"><span class="track"></span>
+            <span class="lbl">Commandes Discord <span class="mono">/lock</span>, <span class="mono">/unlock</span>, <span class="mono">/statut</span></span></label>
+        </div>
+        <div class="mt"><button class="btn btn-primary" onclick="App.saveSettings()">Enregistrer</button></div>
+        <div id="slashInfo" class="mt-sm"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Salons protégés</h2>
+          <span class="sub">jamais touchés par « Tout fermer »</span>
+        </div>
+        <div class="picker">
+          <div class="picker-bar">
+            <input type="text" id="protSearch" placeholder="Rechercher…" oninput="App.renderProtected()">
+          </div>
+          <div class="picker-list short" id="protChannels"></div>
+        </div>
+        <div class="mt"><button class="btn btn-primary" onclick="App.saveProtected()">Enregistrer la liste</button></div>
+      </div>
+
+      <div class="card danger-zone">
+        <div class="card-head"><h2>Zone sensible</h2></div>
+        <div class="wrap">
+          <button class="btn btn-ghost" onclick="App.releaseAll()">Tout rouvrir maintenant</button>
+          <button class="btn btn-ghost" onclick="App.disconnect(false)">Déconnecter le bot</button>
+          <button class="btn btn-danger" onclick="App.disconnect(true)">Déconnecter et oublier le token</button>
         </div>
       </div>
-      <div class="section-body" id="sectionBody_cours">
-        <div id="schedules_cours">
-          <div class="empty-state">Aucune planification dans cette section</div>
-        </div>
-      </div>
-    </div>
+    </section>
 
-  </section>
+  </div></main>
+</div>
 
-</main>
+<!-- ─── MODALES ────────────────────────────────────────────────────────── -->
+<div class="overlay" id="overlay" onclick="App.onOverlayClick(event)">
+  <div class="modal" id="modalBox"></div>
+</div>
 
-<div id="toast" class="toast"></div>
+<div class="toasts" id="toasts"></div>
+
 <script src="js/app.js"></script>
 </body>
 </html>
