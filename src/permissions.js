@@ -41,17 +41,24 @@ function lockedPerms(kind, mode, strict) {
   return p;
 }
 
-// Les clés potentiellement posées par le bot — on les remet à `null`
-// (= hérité) au déverrouillage simple, jamais à `true` : forcer `true`
-// donnerait au rôle plus de droits qu'avant le verrou.
+// Liste historique des clés que le bot a pu poser, tous types de salons
+// confondus. Gardée pour le diagnostic — surtout PAS pour effacer en bloc :
+// remettre `ViewChannel` à `null` sur un rôle qui tenait de cette ligne son
+// droit de voir le salon le prive du salon. C'est le bug du 22/09/2026.
 const ALL_TOUCHED = [
   'ViewChannel', 'SendMessages', 'SendMessagesInThreads',
   'CreatePublicThreads', 'CreatePrivateThreads', 'AddReactions',
   'Connect', 'Speak',
 ];
 
-function clearPerms() {
-  return Object.fromEntries(ALL_TOUCHED.map(k => [k, null]));
+// Remet à `null` (= hérité) uniquement les permissions que CE verrou a posées,
+// jamais plus. Jamais `true` non plus : forcer `true` donnerait au rôle plus de
+// droits qu'avant le verrou.
+function clearPerms(kind, mode) {
+  // `strict` à true : on ratisse les clés des deux réglages, car le mode strict
+  // a pu changer entre la pose du verrou et sa levée.
+  const posees = lockedPerms(kind, mode, true);
+  return Object.fromEntries(Object.keys(posees).map(k => [k, null]));
 }
 
 function allowPerms(kind, mode) {
@@ -76,6 +83,20 @@ function snapshotToOptions(snapshot) {
   return options;
 }
 
+// Que faire d'une ligne de permissions au déverrouillage ? Isolé ici pour être
+// testable sans Discord : c'est ce choix qui, mal fait, a effacé des rôles.
+//   'forcer'    : autorisation explicite demandée (mode « allow »)
+//   'supprimer' : la ligne n'existait pas avant le verrou — le bot la retire
+//   'restaurer' : on réécrit à l'identique la ligne d'avant le verrou
+//   'liberer'   : aucune photo d'avant — on se contente de lever les
+//                 permissions que le verrou pose, sans rien supprimer
+function planDeverrouillage(mode, snap) {
+  if (mode === 'allow') return 'forcer';
+  if (snap && snap.existed === false) return 'supprimer';
+  if (snap) return 'restaurer';
+  return 'liberer';
+}
+
 // Un rôle « fuit » s'il peut écrire alors qu'on verrouille : soit il est
 // administrateur, soit il a une autorisation explicite sur ce salon.
 function bypassKeys(kind, mode) {
@@ -87,5 +108,5 @@ function bypassKeys(kind, mode) {
 
 module.exports = {
   LOCKABLE_TYPES, kindOf, lockedPerms, clearPerms, allowPerms,
-  snapshotToOptions, bypassKeys, ALL_TOUCHED,
+  snapshotToOptions, bypassKeys, ALL_TOUCHED, planDeverrouillage,
 };

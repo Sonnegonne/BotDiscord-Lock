@@ -425,7 +425,7 @@ function schedCard(s) {
       <div class="h">${esc(s.endTime)}</div>
     </div>
     <div class="sched-info">
-      <h3>${esc(s.name)} ${s.running ? '<span class="chip danger">en cours</span>' : ''}</h3>
+      <h3>${esc(s.name)} ${s.running ? '<span class="chip danger">en cours</span>' : ''}${s.pausedUntil ? `<span class="chip warn">⏸ ouvert à la main jusqu'à ${fmtDateTime(s.pausedUntil)}</span>` : ''}</h3>
       <div class="sched-tags">
         ${g ? `<span class="chip" style="color:${esc(g.color)}">${esc(g.emoji || '')} ${esc(g.name)}</span>` : '<span class="chip">cibles manuelles</span>'}
         ${s.days.map(d => `<span class="chip mono">${DAYS[d]}</span>`).join('')}
@@ -441,6 +441,7 @@ function schedCard(s) {
     <div class="sched-acts">
       <button class="btn btn-ghost btn-sm" onclick="App.openSchedule('${s.id}')">Modifier</button>
       <button class="btn btn-ghost btn-sm" onclick="App.toggleSchedule('${s.id}')">${s.active ? 'Désactiver' : 'Activer'}</button>
+      ${s.pausedUntil ? `<button class="btn btn-ghost btn-sm" onclick="App.resumeSchedule('${s.id}')">Reprendre</button>` : ''}
       <button class="btn btn-ghost btn-sm" onclick="App.deleteSchedule('${s.id}')">Supprimer</button>
     </div>
   </div>`;
@@ -1068,6 +1069,15 @@ const App = {
     catch (e) { toast(e.message, 'error'); }
   },
 
+  // Lève la pause posée par une réouverture manuelle : la planification
+  // reprend la main et refermera au prochain tick si on est dans le créneau.
+  async resumeSchedule(id) {
+    try {
+      await api(`/api/schedules/${id}/resume`, { method: 'POST' });
+      toast('Planification reprise', 'success');
+      await load();
+    } catch (e) { toast(e.message, 'error'); }
+  },
 
   async deleteSchedule(id) {
     const s = S.data.schedules.find(x => x.id === id);

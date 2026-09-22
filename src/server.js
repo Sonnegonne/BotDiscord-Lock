@@ -37,6 +37,7 @@ function summarize(results) {
   const failed = results.filter(r => !r.ok);
   return {
     success: true, ok, total: results.length, results,
+    pauses: results.pauses || [],
     errors: failed.map(f => `${f.name || f.channelId} : ${f.error}`),
   };
 }
@@ -187,6 +188,17 @@ app.post(`${BASE_PATH}/api/schedules`, route(async (req) => ({ success: true, sc
 app.put(`${BASE_PATH}/api/schedules/:id`, route(async (req) => ({ success: true, schedule: scheduler.update(req.params.id, req.body || {}) })));
 app.delete(`${BASE_PATH}/api/schedules/:id`, route(async (req) => { scheduler.remove(req.params.id); return { success: true }; }));
 app.patch(`${BASE_PATH}/api/schedules/:id/toggle`, route(async (req) => ({ success: true, schedule: scheduler.toggle(req.params.id) })));
+
+// Lever la pause posée par une réouverture manuelle
+app.post(`${BASE_PATH}/api/schedules/:id/resume`, route(async (req) => {
+  const st = store.get();
+  const sc = st.schedules.find(x => x.id === req.params.id);
+  if (!sc) throw new Error('Planification introuvable');
+  sc.overrideUntil = null;
+  sc.overrideSource = null;
+  store.save();
+  return { success: true, schedules: scheduler.list() };
+}));
 
 // Lancer une planification tout de suite (test)
 app.post(`${BASE_PATH}/api/schedules/:id/run`, route(async (req) => {

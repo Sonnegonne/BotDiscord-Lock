@@ -10,7 +10,7 @@ const store = require('./store');
 const stickers = require('./stickers');
 const {
   LOCKABLE_TYPES, kindOf, lockedPerms, clearPerms, allowPerms,
-  snapshotToOptions, bypassKeys,
+  snapshotToOptions, bypassKeys, planDeverrouillage,
 } = require('./permissions');
 
 const bus = new EventEmitter();
@@ -27,6 +27,35 @@ const PROTECT_KEYWORDS = ['mod', 'log', 'ticket', 'arriv', 'sanction', 'tribunal
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 function s() { return store.get(); }
+
+// ─── File d'attente ─────────────────────────────────────────────────────────
+// Le planificateur (toutes les 30 s) et les actions manuelles écrivaient sur les
+// mêmes salons en même temps : le 22/09/2026, un verrouillage et un
+// déverrouillage se sont entrelacés à 400 ms d'intervalle, laissant des photos
+// d'avant fausses et des lignes de permissions effacées. Tout passe désormais
+// par cette file : une opération à la fois, dans l'ordre d'arrivée.
+let chaine = Promise.resolve();
+function enFile(fn) {
+  const suivant = chaine.then(fn, fn);
+  chaine = suivant.then(() => {}, () => {});
+  return suivant;
+}
+
+// `permissionOverwrites.cache` est alimenté par la passerelle, avec quelques
+// centaines de millisecondes de retard : juste après une écriture il peut être
+// périmé, et `.edit()` fusionne avec ce cache. On relit donc le salon.
+async function salonFrais(guild, channelId) {
+  try {
+    return await guild.channels.fetch(channelId, { force: true });
+  } catch {
+    return guild.channels.cache.get(channelId) || null;
+  }
+}
+
+// Manuel = tout ce qui n'est pas le planificateur ni le minuteur.
+function estManuel(source) {
+  return !['planification', 'minuteur'].includes(String(source || 'manuel'));
+}
 
 function getGuild() {
   if (!client || !ready) return null;
@@ -173,7 +202,7 @@ async function postUnlockNotice(channel) {
 }
 
 // ─── VERROUILLAGE ───────────────────────────────────────────────────────────
-async function lock(channelIds, roleIds, opts = {}) {
+async function lockInterne(channelIds, roleIds, opts = {}) {
   const guild = requireGuild();
   const st = s();
   const roles = [...new Set(roleIds)].filter(Boolean);
@@ -188,7 +217,7 @@ async function lock(channelIds, roleIds, opts = {}) {
   const results = [];
 
   for (const channelId of [...new Set(channelIds)]) {
-    const channel = guild.channels.cache.get(channelId);
+    const channel = await salonFrais(guild, channelId);
     if (!channel) { results.push({ channelId, ok: false, error: 'Salon introuvable' }); continue; }
     if (!LOCKABLE_TYPES.includes(channel.type)) { results.push({ channelId, ok: false, error: 'Type de salon non géré' }); continue; }
 
@@ -235,6 +264,11 @@ async function lock(channelIds, roleIds, opts = {}) {
     results.push({ channelId, name: channel.name, ok: true, mode });
   }
 
+  // Symétrie : refermer à la main remet la planification dans le jeu.
+  if (estManuel(opts.source) && results.some(r => r.ok)) {
+    require('./scheduler').repriseCreneau(channelIds);
+  }
+
   store.save();
   const ok = results.filter(r => r.ok).length;
   if (ok) {
@@ -251,23 +285,26 @@ async function lock(channelIds, roleIds, opts = {}) {
   return results;
 }
 
-async function unlock(channelIds, roleIds, opts = {}) {
+async function unlockInterne(channelIds, roleIds, opts = {}) {
   const guild = requireGuild();
   const st = s();
   const mode = opts.restore === true ? 'restore' : (opts.restore || 'restore');
   const results = [];
 
   for (const channelId of [...new Set(channelIds)]) {
-    const channel = guild.channels.cache.get(channelId);
+    const channel = await salonFrais(guild, channelId);
     if (!channel) {
       delete st.locks[channelId]; delete st.snapshots[channelId];
       results.push({ channelId, ok: false, error: 'Salon introuvable' });
       continue;
     }
     const entry = st.locks[channelId];
-    const targets = (roleIds && roleIds.length)
-      ? [...new Set(roleIds)]
-      : Object.keys((entry && entry.roles) || {});
+    const verrouilles = Object.keys((entry && entry.roles) || {});
+    const demandes = (roleIds && roleIds.length) ? [...new Set(roleIds)] : verrouilles;
+    // On ne touche QUE les rôles que le bot a lui-même verrouillés ici. Avant ce
+    // correctif, un /unlock de classe passait sur tous les rôles du groupe, y
+    // compris ceux qui n'avaient jamais été verrouillés — et effaçait leur ligne.
+    const targets = mode === 'allow' ? demandes : demandes.filter(id => verrouilles.includes(id));
     if (!targets.length) { results.push({ channelId, name: channel.name, ok: true, skipped: true }); continue; }
 
     let failed = null;
@@ -277,19 +314,20 @@ async function unlock(channelIds, roleIds, opts = {}) {
         const kind = kindOf(channel.type);
         const lockMode = (entry && entry.roles[roleId] && entry.roles[roleId].mode) || resolveMode(channel, 'auto');
 
-        if (mode === 'allow') {
+        const plan = planDeverrouillage(mode, snap);
+        if (plan === 'forcer') {
           await channel.permissionOverwrites.edit(roleId, allowPerms(kind, lockMode), { reason: 'DachGuard — autorisation forcée' });
-        } else if (mode === 'restore' && snap) {
-          if (!snap.existed) {
-            const ow = channel.permissionOverwrites.cache.get(roleId);
-            if (ow) await ow.delete('DachGuard — retour a l etat initial');
-          } else {
-            await channel.permissionOverwrites.edit(roleId, snapshotToOptions(snap), { reason: 'DachGuard — retour a l etat initial' });
-          }
-        } else {
-          await channel.permissionOverwrites.edit(roleId, clearPerms(), { reason: 'DachGuard — deverrouillage' });
+        } else if (plan === 'supprimer') {
           const ow = channel.permissionOverwrites.cache.get(roleId);
-          if (ow && ow.allow.bitfield === 0n && ow.deny.bitfield === 0n) await ow.delete('DachGuard — overwrite vide');
+          if (ow) await ow.delete('DachGuard — retour a l etat initial');
+        } else if (plan === 'restaurer') {
+          // `create()` fait un PUT exact, sans fusionner avec le cache — ce que
+          // `edit()` fait, et que le cache périmé rendait dangereux.
+          await channel.permissionOverwrites.create(roleId, snapshotToOptions(snap), { reason: 'DachGuard — retour a l etat initial' });
+        } else {
+          // Aucune suppression de ligne ici : c'est ce qui faisait disparaître
+          // les rôles des permissions du salon.
+          await channel.permissionOverwrites.edit(roleId, clearPerms(kind, lockMode), { reason: 'DachGuard — deverrouillage' });
         }
         if (st.snapshots[channelId]) delete st.snapshots[channelId][roleId];
         if (entry && entry.roles) delete entry.roles[roleId];
@@ -317,6 +355,24 @@ async function unlock(channelIds, roleIds, opts = {}) {
       detail: results.filter(r => r.ok).map(r => r.name).join(', '),
     });
   }
+
+  // La main passe avant la planification : tant que le créneau en cours n'est
+  // pas fini, le planificateur ne referme plus ces salons. Sans cela, le tick
+  // suivant (30 s) reverrouillait ce qu'on venait d'ouvrir.
+  results.pauses = [];
+  if (ok && estManuel(opts.source)) {
+    const scheduler = require('./scheduler'); // ici : dépendance croisée
+    results.pauses = scheduler.pauseCreneauEnCours(channelIds, opts.source);
+    for (const p of results.pauses) {
+      store.logActivity({
+        type: 'schedule',
+        source: opts.source || 'manuel',
+        label: `${p.name} : en pause jusqu'à la fin du créneau`,
+        detail: `réouverture manuelle — aucun reverrouillage avant ${p.until}`,
+      });
+    }
+  }
+
   bus.emit('change');
   return results;
 }
@@ -473,7 +529,12 @@ async function handleInteraction(interaction) {
         restore: 'restore', source: `slash:${interaction.user.tag}`, label: group.name,
       });
       const ok = res.filter(r => r.ok).length;
-      return interaction.editReply(`🔓 **${ok}/${res.length}** salons rouverts pour **${group.name}**.`);
+      const pause = (res.pauses || [])[0];
+      const suite = pause
+        ? `
+⏸ La planification **${pause.name}** est mise en pause : aucun reverrouillage automatique avant le prochain créneau.`
+        : '';
+      return interaction.editReply(`🔓 **${ok}/${res.length}** salons rouverts pour **${group.name}**.${suite}`);
     }
   } catch (err) {
     const payload = { flags: MessageFlags.Ephemeral, content: `❌ ${err.message}` };
@@ -559,6 +620,10 @@ function status() {
     categories: guildCache.categories,
   };
 }
+
+// Les deux seules portes d'entrée : sérialisées, jamais entrelacées.
+const lock = (channelIds, roleIds, opts) => enFile(() => lockInterne(channelIds, roleIds, opts));
+const unlock = (channelIds, roleIds, opts) => enFile(() => unlockInterne(channelIds, roleIds, opts));
 
 module.exports = {
   bus, connect, disconnect, status, refresh, getGuild, requireGuild,

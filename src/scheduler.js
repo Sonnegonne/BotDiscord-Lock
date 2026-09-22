@@ -75,6 +75,8 @@ function sanitize(data, existing) {
     : (e.days || []);
   const sc = {
     id: e.id,
+    overrideUntil: e.overrideUntil || null,
+    overrideSource: e.overrideSource || null,
     name: data.name !== undefined ? String(data.name).trim() : (e.name || ''),
     groupId: data.groupId !== undefined ? (data.groupId || null) : (e.groupId || null),
     days,
@@ -114,6 +116,8 @@ function list() {
     ...sc,
     effectiveActive: isEffectivelyActive(sc),
     running: isWithinWindow(sc),
+    pausedUntil: overrideActif(sc) ? sc.overrideUntil : null,
+    pausedBy: overrideActif(sc) ? sc.overrideSource : null,
     overnight: isOvernight(sc),
     nextRun: nextRunOf(sc),
     targets: resolveTargets(sc),
@@ -228,6 +232,62 @@ function nextRunOf(schedule) {
   return { at: next.at.toISOString(), kind: next.kind };
 }
 
+// ─── Priorité à la main ─────────────────────────────────────────────────────
+// Fin du créneau en cours pour cette planification (null si on n'y est pas).
+function finDuCreneau(sc, now = new Date()) {
+  if (!isWithinWindow(sc, now)) return null;
+  const unlockDays = isOvernight(sc)
+    ? [...new Set(sc.days.map(d => (d + 1) % 7))].sort()
+    : sc.days;
+  const at = nextOccurrence(unlockDays, sc.endTime);
+  return at ? at.toISOString() : null;
+}
+
+function overrideActif(sc, now = new Date()) {
+  if (!sc.overrideUntil) return false;
+  return now.getTime() < new Date(sc.overrideUntil).getTime();
+}
+
+// Appelée après un déverrouillage manuel : le créneau en cours est mis en
+// pause. Le planificateur ne reverrouille plus rien avant le créneau suivant.
+function pauseCreneauEnCours(channelIds, source) {
+  const st = s();
+  const touches = new Set(channelIds || []);
+  const pauses = [];
+  for (const sc of st.schedules) {
+    if (!isEffectivelyActive(sc)) continue;
+    const { channelIds: cibles } = resolveTargets(sc);
+    if (!cibles.some(id => touches.has(id))) continue;
+    const fin = finDuCreneau(sc);
+    if (!fin) continue;
+    sc.overrideUntil = fin;
+    sc.overrideSource = source || 'manuel';
+    pauses.push({ id: sc.id, name: sc.name, until: fin });
+  }
+  if (pauses.length) store.save();
+  return pauses;
+}
+
+// Refermer à la main (ou lever la pause depuis le dashboard) rend la planification
+// à son travail : c'est toujours la dernière décision humaine qui gagne.
+function repriseCreneau(channelIds) {
+  const st = s();
+  const touches = channelIds ? new Set(channelIds) : null;
+  const reprises = [];
+  for (const sc of st.schedules) {
+    if (!sc.overrideUntil) continue;
+    if (touches) {
+      const { channelIds: cibles } = resolveTargets(sc);
+      if (!cibles.some(id => touches.has(id))) continue;
+    }
+    sc.overrideUntil = null;
+    sc.overrideSource = null;
+    reprises.push({ id: sc.id, name: sc.name });
+  }
+  if (reprises.length) store.save();
+  return reprises;
+}
+
 // Conservés pour compatibilité : le tick fait tout le travail
 function register() {}
 function unregister() {}
@@ -247,7 +307,15 @@ async function reconcile() {
   for (const sc of st.schedules) {
     const { channelIds, roleIds } = resolveTargets(sc);
     if (!channelIds.length || !roleIds.length) continue;
-    const shouldLock = isEffectivelyActive(sc) && isWithinWindow(sc);
+
+    // La pause posée par un déverrouillage manuel meurt avec le créneau.
+    if (sc.overrideUntil && !overrideActif(sc)) { sc.overrideUntil = null; sc.overrideSource = null; }
+
+    const inWindow = isEffectivelyActive(sc) && isWithinWindow(sc);
+    // On distingue « on est dans le créneau » de « on doit verrouiller » : la
+    // pause manuelle empêche de refermer, sans déclencher pour autant la
+    // réouverture de fin de créneau (qui rouvrirait les salons restés fermés).
+    const shouldLock = inWindow && !overrideActif(sc);
 
     const missing = new Set();
     const stale = new Set();
@@ -256,7 +324,7 @@ async function reconcile() {
       for (const roleId of roleIds) {
         const held = entry && entry.roles[roleId];
         if (shouldLock && !held) missing.add(channelId);
-        if (!shouldLock && held && held.scheduleId === sc.id) stale.add(channelId);
+        if (!inWindow && held && held.scheduleId === sc.id) stale.add(channelId);
       }
     }
 
@@ -274,7 +342,7 @@ async function reconcile() {
         store.logActivity({ type: 'error', source: 'planification', label: sc.name, detail: err.message });
       }
     }
-    if (!shouldLock && stale.size) {
+    if (!inWindow && stale.size) {
       try {
         await bot.unlock([...stale], roleIds, {
           restore: 'restore', source: 'planification', label: sc.name,
@@ -312,6 +380,7 @@ async function tick() {
 
 module.exports = {
   list, create, update, remove, toggle, register, registerAll, unregister,
+  pauseCreneauEnCours, repriseCreneau, finDuCreneau, overrideActif,
   reconcile, tick, refreshGroup, isWithinWindow, isOvernight, resolveTargets,
   nextRunOf, nextOccurrence, zonedNow, toMinutes, DAY_NAMES, DAY_SHORT,
 };
