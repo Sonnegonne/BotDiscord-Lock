@@ -27,6 +27,7 @@ bot.status = () => ({
   guild: {
     id: fixture.guild.id, name: fixture.guild.name + ' (démo)', icon: null,
     memberCount: 42, botTag: 'DachGuard#0000', botRolePosition: 50, canManageRoles: true,
+    canManageMessages: true, everyoneCanUseExternalStickers: true,
   },
   channels, roles, categories: [],
 });
@@ -53,6 +54,9 @@ if (g0 && !Object.keys(st.locks).length) {
   }
   store.logActivity({ type: 'lock', source: 'démo', label: g0.name, count: 2, total: 2, detail: 'salon-a, salon-b' });
   store.logActivity({ type: 'unlock', source: 'planification', label: 'Nuit 3TIN', count: 7, total: 7 });
+  store.logActivity({ type: 'sticker', source: 'auto', label: 'eleve#0001', detail: '#general — « chat rigolo »' });
+  st.settings.stickerGuard.enabled = true;
+  st.stickerStats = { removed: 3, lastAt: new Date(Date.now() - 300e3).toISOString(), lastUser: 'eleve#0001', lastChannel: 'general', lastError: null };
   store.save(true);
 }
 

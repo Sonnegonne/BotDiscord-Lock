@@ -304,6 +304,55 @@
 
       <div class="card">
         <div class="card-head">
+          <h2>Stickers</h2>
+          <span class="sub" id="stickerCount"></span>
+        </div>
+        <div id="stickerBanner"></div>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <label class="switch"><input type="checkbox" id="setStickerOn" onchange="App.toggleStickerBox()"><span class="track"></span>
+            <span class="lbl">Interdire les stickers — tout message qui en contient est effacé</span></label>
+        </div>
+        <div id="stickerBox" class="hidden">
+          <div class="mt" style="display:flex;flex-direction:column;gap:11px">
+            <label class="switch"><input type="checkbox" id="setStickerStaff"><span class="track"></span>
+              <span class="lbl">Laisser passer la modération (permission « Gérer les messages »)</span></label>
+            <label class="switch"><input type="checkbox" id="setStickerBots"><span class="track"></span>
+              <span class="lbl">Laisser passer les autres bots</span></label>
+            <label class="switch"><input type="checkbox" id="setStickerWarn"><span class="track"></span>
+              <span class="lbl">Prévenir l'auteur dans le salon (rappel effacé ensuite)</span></label>
+          </div>
+          <div class="row mt">
+            <div class="field" style="margin-top:0">
+              <label>Rappel adressé à l'auteur</label>
+              <input type="text" id="setStickerMessage">
+            </div>
+            <div class="field" style="margin-top:0;flex:0 0 130px">
+              <label>Effacé après (s)</label>
+              <input type="number" id="setStickerSeconds" min="3" max="120">
+            </div>
+          </div>
+          <div class="field">
+            <label>Rôles autorisés malgré tout</label>
+            <div class="role-picker" id="stickerRoles"></div>
+            <div class="help">Profs, délégués… laissez vide pour n'épargner personne.</div>
+          </div>
+          <div class="field">
+            <label>Salons où les stickers restent permis</label>
+            <div class="picker">
+              <div class="picker-bar">
+                <input type="text" id="stickerSearch" placeholder="Rechercher…" oninput="App.renderStickerChannels()">
+              </div>
+              <div class="picker-list short" id="stickerChannels"></div>
+            </div>
+            <div class="help">Cocher une catégorie n'est pas possible ici : cochez les salons un par un (un fil suit son salon).</div>
+          </div>
+        </div>
+        <div class="mt"><button class="btn btn-primary" onclick="App.saveStickerGuard()">Enregistrer</button>
+        <button class="btn btn-ghost" style="margin-left:8px" onclick="App.resetStickerStats()">Remettre le compteur à zéro</button></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
           <h2>Salons protégés</h2>
           <span class="sub">jamais touchés par « Tout fermer »</span>
         </div>

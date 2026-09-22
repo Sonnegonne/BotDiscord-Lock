@@ -7,11 +7,13 @@
 const fs = require('fs');
 const path = require('path');
 
+const stickers = { defaults: () => require('./stickers').defaults() };
+
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const FILE = path.join(DATA_DIR, 'state.json');
 const TMP = FILE + '.tmp';
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 function defaults() {
   return {
@@ -26,10 +28,12 @@ function defaults() {
       defaultLockMessage: 'Salon fermé — on se retrouve à la réouverture.',
       protectedChannelIds: [],   // jamais touchés par les actions globales
       slashCommands: true,
+      stickerGuard: stickers.defaults(),   // interdiction des stickers
     },
     groups: [],                  // les classes (3TIN, 4TIN, …)
     schedules: [],
     locks: {},                   // channelId -> { channelName, parentName, messageId, roles:{} }
+    stickerStats: { removed: 0, lastAt: null, lastUser: null, lastChannel: null, lastError: null },
     snapshots: {},               // channelId -> roleId -> { existed, allow, deny }
     activity: [],                // journal, plus récent en premier
   };
@@ -49,7 +53,17 @@ function load() {
   try {
     if (fs.existsSync(FILE)) {
       const raw = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-      state = migrate({ ...defaults(), ...raw, settings: { ...defaults().settings, ...(raw.settings || {}) } });
+      const base = defaults();
+      state = migrate({
+        ...base, ...raw,
+        settings: {
+          ...base.settings, ...(raw.settings || {}),
+          // réglage imbriqué : compléter clé par clé, sinon une vieille sauvegarde
+          // effacerait les options ajoutées depuis
+          stickerGuard: { ...base.settings.stickerGuard, ...((raw.settings || {}).stickerGuard || {}) },
+        },
+        stickerStats: { ...base.stickerStats, ...(raw.stickerStats || {}) },
+      });
       console.log(`[store] état chargé (${state.groups.length} classe(s), ${state.schedules.length} planification(s))`);
     } else {
       console.log('[store] aucun état existant, démarrage à neuf');

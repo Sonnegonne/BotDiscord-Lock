@@ -20,6 +20,9 @@ En ligne : `https://studio-dach.site/lock/` (Basic Auth) — en local : `http://
   fermé et rattrape ce qu'il a manqué.
 - **Retour à l'état initial** — avant chaque verrou, les permissions du rôle sur le salon sont
   photographiées ; la réouverture les restitue exactement (et non « autorisé pour tout le monde »).
+- **Pas de stickers** — quand la garde est active, tout message porteur d'un sticker est effacé
+  dans la seconde, et son auteur reçoit un rappel qui disparaît ensuite. On peut épargner des
+  salons (ou des catégories entières), des rôles, la modération et les autres bots.
 - **Commandes Discord** — `/lock`, `/unlock`, `/statut`, réservées à ceux qui peuvent gérer les salons.
 - **Diagnostic** — « Vérifier les fuites » liste les rôles qui garderaient la parole malgré le
   verrou (autorisation explicite sur le salon, ou rôle administrateur).
@@ -38,13 +41,15 @@ Variante : la variable d'environnement `DISCORD_TOKEN` a priorité.
 
 ### Côté Discord
 
-Permissions nécessaires : `Gérer les rôles`, `Gérer les salons`, `Voir les salons`, `Envoyer des messages`.
+Permissions nécessaires : `Gérer les rôles`, `Gérer les salons`, `Voir les salons`, `Envoyer des messages`,
+et `Gérer les messages` pour la garde anti-stickers (sans elle, le bot voit les stickers mais ne peut pas
+les effacer — le dashboard le signale).
 Le rôle du bot doit être **au-dessus** des rôles qu'il doit verrouiller (le dashboard signale
 ceux qui sont hors de portée). Pour les commandes slash, invitez-le avec le scope
 `applications.commands` :
 
 ```
-https://discord.com/api/oauth2/authorize?client_id=TON_CLIENT_ID&permissions=268453904&scope=bot%20applications.commands
+https://discord.com/api/oauth2/authorize?client_id=TON_CLIENT_ID&permissions=268462096&scope=bot%20applications.commands
 ```
 
 ## Organisation du code
@@ -55,6 +60,7 @@ https://discord.com/api/oauth2/authorize?client_id=TON_CLIENT_ID&permissions=268
 | `src/permissions.js` | traduction « verrouiller » → overwrites Discord, et l'inverse |
 | `src/bot.js` | connexion, verrouillage/déverrouillage, diagnostic, commandes slash |
 | `src/groups.js` | les classes et leur détection automatique |
+| `src/stickers.js` | la garde anti-stickers : qui a le droit, et ce qu'on efface |
 | `src/scheduler.js` | créneaux hebdomadaires + réconciliation |
 | `src/server.js` | API HTTP et service du dashboard |
 | `public/` | dashboard (sans framework) |
@@ -66,11 +72,32 @@ qui couvrent l'instant présent, fuseau `Europe/Brussels`) à **l'état réel** 
 différence. Un redémarrage à 23h pendant un créneau 22h → 7h re-verrouille immédiatement ;
 un créneau supprimé pendant qu'il était actif rouvre tout seul.
 
+### Comment les stickers sont bloqués
+
+Discord n'a pas de permission « interdire les stickers » : la seule qui existe,
+`Utiliser des stickers externes`, ne couvre que ceux venant d'autres serveurs. DachGuard applique
+donc la règle à la réception : à chaque message, s'il porte un sticker et que rien ne l'épargne,
+le message part. L'ordre des exceptions est fixe :
+
+1. la garde est-elle activée ? sinon on ne touche à rien ;
+2. le salon — ou sa catégorie, ou le salon parent d'un fil — est-il dans la liste des exceptions ?
+3. l'auteur peut-il « Gérer les messages » (et la modération est-elle tolérée) ?
+4. porte-t-il un des rôles autorisés ?
+
+Sinon : suppression, une ligne au journal (qui, où, quel sticker) et un rappel à l'auteur, au plus
+un toutes les 30 secondes par personne et par salon pour ne pas ajouter du bruit au bruit.
+Aucun intent privilégié n'est nécessaire : les stickers voyagent hors du « message content ».
+
+Le complément se fait côté Discord : retirez `Utiliser des stickers externes` au rôle `@everyone`
+dans les paramètres du serveur, et les stickers des autres serveurs n'arriveront même plus jusqu'au
+bot. Le dashboard rappelle de le faire tant que c'est en attente.
+
 ## Tests
 
 ```bash
 node test/demo.js        # dashboard rempli, sans Discord (port 3999)
-node test/render-check.js # passe toutes les vues sur un état réel, sans navigateur
+node test/render-check.js  # passe toutes les vues sur un état réel, sans navigateur
+node test/sticker-check.js # la garde anti-stickers : décision, suppression, journal, anti-spam
 ```
 
 ## Déploiement (VPS studio-dach.site)

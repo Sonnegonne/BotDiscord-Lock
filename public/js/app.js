@@ -14,6 +14,8 @@ const S = {
   classFilter: null,
   lockedOnly: false,
   protSel: new Set(),
+  stickerChanSel: new Set(),   // salons ou les stickers restent permis
+  stickerRoleSel: new Set(),   // roles epargnes par la garde
   modal: null,             // { type, draft } quand une modale est ouverte
   settingsDirty: false,
 };
@@ -96,6 +98,9 @@ async function load() {
     if (firstLoad) {
       firstLoad = false;
       S.protSel = new Set(data.settings.protectedChannelIds || []);
+      const sg = data.settings.stickerGuard || {};
+      S.stickerChanSel = new Set(sg.exemptChannelIds || []);
+      S.stickerRoleSel = new Set(sg.exemptRoleIds || []);
       if (data.groups[0]) data.groups[0].roleIds.forEach(r => S.roleSel.add(r));
       fillSettings();
     }
@@ -116,6 +121,7 @@ function render() {
   renderJournal();
   renderConnection();
   renderProtected();
+  renderStickers();
 }
 
 /* ─── Barre latérale ────────────────────────────────────────────────────── */
@@ -175,6 +181,7 @@ function renderBanner() {
 /* ─── Tableau de bord ───────────────────────────────────────────────────── */
 function renderDashboard() {
   const d = S.data;
+  const sg = d.settings.stickerGuard || {};
   const activeSched = d.schedules.filter(s => s.effectiveActive).length;
   const runningSched = d.schedules.filter(s => s.running && s.effectiveActive).length;
 
@@ -193,6 +200,11 @@ function renderDashboard() {
       <div class="label">Planifications</div>
       <div class="value">${activeSched}<small> / ${d.schedules.length}</small></div>
       <div class="hint">${runningSched ? `${runningSched} créneau(x) en cours` : 'aucun créneau en cours'}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Stickers</div>
+      <div class="value">${sg.enabled ? (d.stickerStats?.removed || 0) : '—'}</div>
+      <div class="hint">${sg.enabled ? 'supprimés depuis la mise en place' : 'autorisés'}</div>
     </div>
     <div class="stat warn">
       <div class="label">Prochaine action</div>
@@ -257,12 +269,13 @@ function renderDashboard() {
 
 function feedHtml(items) {
   if (!items.length) return `<div class="empty"><strong>Journal vide</strong>Les actions du bot s'inscriront ici.</div>`;
-  const icons = { lock: '🔒', unlock: '🔓', schedule: '📅', error: '⚠️' };
+  const icons = { lock: '🔒', unlock: '🔓', schedule: '📅', error: '⚠️', sticker: '🏷️' };
   return `<div class="feed">${items.map(a => `
     <div class="feed-item ${esc(a.type)}">
       <div class="feed-dot">${icons[a.type] || '•'}</div>
       <div class="feed-body">
-        <div class="feed-title">${a.type === 'lock' ? 'Fermeture' : a.type === 'unlock' ? 'Réouverture' : a.type === 'error' ? 'Échec' : 'Planning'}
+        <div class="feed-title">${a.type === 'lock' ? 'Fermeture' : a.type === 'unlock' ? 'Réouverture'
+          : a.type === 'sticker' ? 'Sticker supprimé' : a.type === 'error' ? 'Échec' : 'Planning'}
           ${a.count ? `<span class="dim">— ${a.count} salon${a.count > 1 ? 's' : ''}</span>` : ''}
           ${a.label ? `<span class="dim">· ${esc(a.label)}</span>` : ''}</div>
         <div class="feed-meta">${timeAgo(a.at)} · ${fmtDateTime(a.at)} · ${esc(a.source || '')}</div>
@@ -475,6 +488,67 @@ function fillSettings() {
   $('setAnnounceLock').checked = !!st.announceLock;
   $('setAnnounceUnlock').checked = !!st.announceUnlock;
   $('setSlash').checked = !!st.slashCommands;
+
+  const sg = st.stickerGuard || {};
+  $('setStickerOn').checked = !!sg.enabled;
+  $('setStickerStaff').checked = sg.allowStaff !== false;
+  $('setStickerBots').checked = sg.allowBots !== false;
+  $('setStickerWarn').checked = sg.warn !== false;
+  $('setStickerMessage').value = sg.warnMessage || '';
+  $('setStickerSeconds').value = sg.warnSeconds ?? 10;
+  $('stickerBox').classList.toggle('hidden', !sg.enabled);
+}
+
+/* ─── Réglages : garde anti-stickers ───────────────────────────────── */
+function renderStickers() {
+  const d = S.data;
+  const sg = d.settings.stickerGuard || {};
+  const stats = d.stickerStats || {};
+
+  $('stickerCount').textContent = sg.enabled
+    ? `${stats.removed || 0} sticker(s) supprimé(s)${stats.lastAt ? ` · dernier ${timeAgo(stats.lastAt)}` : ''}`
+    : 'garde désactivée';
+
+  const warn = [];
+  if (sg.enabled && d.connected && d.guild && d.guild.canManageMessages === false) {
+    warn.push(`<div class="banner danger" style="margin-bottom:12px"><div class="row-icon">🔑</div>
+      <div class="grow"><h3>Permission manquante</h3>
+      <p>Le bot n'a pas « Gérer les messages » : il voit les stickers mais ne peut pas les effacer.</p></div></div>`);
+  }
+  if (sg.enabled && d.connected && d.guild && d.guild.everyoneCanUseExternalStickers) {
+    warn.push(`<div class="banner info" style="margin-bottom:12px"><div class="row-icon">💡</div>
+      <div class="grow"><h3>À faire côté Discord</h3>
+      <p>Le rôle @everyone a encore « Utiliser des stickers externes ». Retirez-la dans les paramètres du
+      serveur : les stickers venant d'ailleurs n'arriveront même plus jusqu'au bot.</p></div></div>`);
+  }
+  if (sg.enabled && stats.lastError) {
+    warn.push(`<div class="banner warn" style="margin-bottom:12px"><div class="row-icon">⚠️</div>
+      <div class="grow"><h3>Dernière suppression en échec</h3><p>${esc(stats.lastError)}</p></div></div>`);
+  }
+  $('stickerBanner').innerHTML = warn.join('');
+
+  $('stickerRoles').innerHTML = (d.roles || []).map(r => `
+    <button class="role-chip ${S.stickerRoleSel.has(r.id) ? 'selected' : ''}" onclick="App.toggleStickerRole('${r.id}')">
+      <span class="dotc" style="background:${esc(r.color)}"></span>${esc(r.name)}
+    </button>`).join('') || '<span class="faint">Aucun rôle</span>';
+
+  renderStickerChannels();
+}
+
+function renderStickerChannels() {
+  const q = ($('stickerSearch')?.value || '').toLowerCase().trim();
+  const list = (S.data.channels || []).filter(c => !q || c.name.toLowerCase().includes(q) || c.parentName.toLowerCase().includes(q));
+  const box = $('stickerChannels');
+  if (!list.length) { box.innerHTML = '<div class="empty">Aucun salon</div>'; return; }
+  const cats = [];
+  for (const c of list) {
+    let cat = cats.find(x => x.name === c.parentName);
+    if (!cat) { cat = { name: c.parentName, items: [] }; cats.push(cat); }
+    cat.items.push(c);
+  }
+  box.innerHTML = cats.map(cat => `
+    <div class="cat-head"><span>${esc(cat.name)}</span><span class="line"></span></div>
+    ${cat.items.map(c => channelRow(c, S.stickerChanSel.has(c.id), `App.toggleStickerChannel('${c.id}')`)).join('')}`).join('');
 }
 
 function renderConnection() {
@@ -766,7 +840,45 @@ const App = {
     } catch (e) { toast(e.message, 'error'); }
   },
 
-  renderLockChannels, renderProtected,
+  renderLockChannels, renderProtected, renderStickerChannels,
+
+  /* — stickers — */
+  toggleStickerBox() { $('stickerBox').classList.toggle('hidden', !$('setStickerOn').checked); },
+  toggleStickerChannel(id) {
+    S.stickerChanSel.has(id) ? S.stickerChanSel.delete(id) : S.stickerChanSel.add(id);
+    renderStickerChannels();
+  },
+  toggleStickerRole(id) {
+    S.stickerRoleSel.has(id) ? S.stickerRoleSel.delete(id) : S.stickerRoleSel.add(id);
+    renderStickers();
+  },
+
+  async saveStickerGuard() {
+    try {
+      await api('/api/settings', {
+        method: 'PUT',
+        body: {
+          stickerGuard: {
+            enabled: $('setStickerOn').checked,
+            allowStaff: $('setStickerStaff').checked,
+            allowBots: $('setStickerBots').checked,
+            warn: $('setStickerWarn').checked,
+            warnMessage: $('setStickerMessage').value,
+            warnSeconds: Number($('setStickerSeconds').value) || 10,
+            exemptChannelIds: [...S.stickerChanSel],
+            exemptRoleIds: [...S.stickerRoleSel],
+          },
+        },
+      });
+      toast($('setStickerOn').checked ? '🏷️ Stickers interdits' : 'Stickers de nouveau autorisés', 'success');
+      await load();
+    } catch (e) { toast(e.message, 'error'); }
+  },
+
+  async resetStickerStats() {
+    try { await api('/api/stickers/reset', { method: 'POST' }); toast('Compteur remis à zéro'); await load(); }
+    catch (e) { toast(e.message, 'error'); }
+  },
 
   /* — classes — */
   async detectGroups() {
@@ -955,6 +1067,7 @@ const App = {
     try { await api(`/api/schedules/${id}/toggle`, { method: 'PATCH' }); await load(); }
     catch (e) { toast(e.message, 'error'); }
   },
+
 
   async deleteSchedule(id) {
     const s = S.data.schedules.find(x => x.id === id);

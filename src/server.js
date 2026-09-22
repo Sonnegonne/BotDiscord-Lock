@@ -58,6 +58,7 @@ app.get(`${BASE_PATH}/api/state`, route(async () => {
     startedAt,
     basePath: BASE_PATH,
     settings: st.settings,
+    stickerStats: st.stickerStats,
     groups: st.groups.map(g => {
       const locked = g.channelIds.filter(id => st.locks[id]).length;
       return { ...g, lockedCount: locked, total: g.channelIds.length };
@@ -210,11 +211,34 @@ app.put(`${BASE_PATH}/api/settings`, route(async (req) => {
   const allowed = ['timezone', 'strictLock', 'announceLock', 'announceUnlock',
                    'defaultLockMessage', 'protectedChannelIds', 'slashCommands'];
   for (const key of allowed) if (body[key] !== undefined) st.settings[key] = body[key];
+
+  // Garde anti-stickers : réglage imbriqué, mis à jour clé par clé
+  if (body.stickerGuard && typeof body.stickerGuard === 'object') {
+    const g = st.settings.stickerGuard;
+    const bools = ['enabled', 'allowStaff', 'allowBots', 'warn'];
+    for (const key of bools) if (body.stickerGuard[key] !== undefined) g[key] = !!body.stickerGuard[key];
+    for (const key of ['exemptChannelIds', 'exemptRoleIds']) {
+      if (Array.isArray(body.stickerGuard[key])) g[key] = body.stickerGuard[key].map(String);
+    }
+    if (body.stickerGuard.warnMessage !== undefined) {
+      g.warnMessage = String(body.stickerGuard.warnMessage).slice(0, 300);
+    }
+    if (body.stickerGuard.warnSeconds !== undefined) {
+      g.warnSeconds = Math.min(120, Math.max(3, Number(body.stickerGuard.warnSeconds) || 10));
+    }
+  }
   store.save(true);
   bot.refresh();
   scheduler.registerAll();
   if (body.slashCommands !== undefined) await bot.registerSlashCommands();
   return { success: true, settings: st.settings };
+}));
+
+app.post(`${BASE_PATH}/api/stickers/reset`, route(async () => {
+  const st = store.get();
+  st.stickerStats = { removed: 0, lastAt: null, lastUser: null, lastChannel: null, lastError: null };
+  store.save(true);
+  return { success: true, stickerStats: st.stickerStats };
 }));
 
 app.get(`${BASE_PATH}/api/activity`, route(async () => store.get().activity));

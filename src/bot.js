@@ -7,6 +7,7 @@ const {
   SlashCommandBuilder, PermissionFlagsBits, MessageFlags,
 } = require('discord.js');
 const store = require('./store');
+const stickers = require('./stickers');
 const {
   LOCKABLE_TYPES, kindOf, lockedPerms, clearPerms, allowPerms,
   snapshotToOptions, bypassKeys,
@@ -105,6 +106,8 @@ function refresh() {
       botTag: client.user?.tag || null,
       botRolePosition: me?.roles.highest.position ?? null,
       canManageRoles: me?.permissions.has(PermissionsBitField.Flags.ManageRoles) ?? false,
+      canManageMessages: me?.permissions.has(PermissionsBitField.Flags.ManageMessages) ?? false,
+      everyoneCanUseExternalStickers: stickers.everyoneCanUseExternal(guild),
     },
     channels, roles, categories,
   };
@@ -498,6 +501,10 @@ function createClient() {
   c.once('ready', onReady);
 
   c.on('interactionCreate', handleInteraction);
+  c.on('messageCreate', message => {
+    stickers.handle(message, { onChange: () => bus.emit('change') })
+      .catch(err => console.error(`[stickers] ${err.message}`));
+  });
   c.on('error', err => { lastError = err.message; console.error(`[discord] ${err.message}`); });
   c.on('shardDisconnect', () => { ready = false; bus.emit('change'); });
   c.on('shardResume', () => { ready = true; bus.emit('change'); });

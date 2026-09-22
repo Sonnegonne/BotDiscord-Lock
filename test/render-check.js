@@ -82,6 +82,9 @@ async function main() {
     ['journalFeed', /feed-item|empty/],
     ['connectionBox', /row-item|field/],
     ['protChannels', /class="ch /],
+    ['stickerChannels', /class="ch /],
+    ['stickerRoles', /role-chip|Aucun/],
+    ['stickerBanner', /.*/],
     ['globalBanner', /.*/],
   ];
 
