@@ -10,7 +10,8 @@ const os = require('os');
 const path = require('path');
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'dachguard-tel-'));
-process.env.PORT = '3998';
+const PORT = 39871;   // port à lui : ne jamais parler à une démo restée ouverte
+process.env.PORT = String(PORT);
 delete process.env.DISCORD_TOKEN;
 
 const bot = require('../src/bot');
@@ -25,18 +26,28 @@ bot.lock = faux('lock');
 bot.unlock = faux('unlock');
 bot.status = () => ({ connected: true, channels: [{ id: 'a1' }, { id: 'a2' }, { id: 'b1' }, { id: 'mod' }], roles: [] });
 
-require('../src/server');
-const store = require('../src/store');
-const telephone = require('../src/telephone');
+const net = require('net');
+const portLibre = () => new Promise(resolve => {
+  const sonde = net.connect(PORT, '127.0.0.1');
+  sonde.on('connect', () => { sonde.destroy(); resolve(false); });
+  sonde.on('error', () => resolve(true));
+});
 
-const st = store.get();
-st.groups = [
-  { id: 'g3', name: '3TIN', channelIds: ['a1', 'a2'], roleIds: ['r3'], defaultMessage: '' },
-  { id: 'g4', name: '4TIN', channelIds: ['b1'], roleIds: ['r4'], defaultMessage: '' },
-];
-st.settings.protectedChannelIds = ['mod'];
+let store, telephone, st;
+async function demarrer() {
+  if (!await portLibre()) { console.error(`  ❌ le port ${PORT} est déjà pris`); process.exit(1); }
+  require('../src/server');
+  store = require('../src/store');
+  telephone = require('../src/telephone');
+  st = store.get();
+  st.groups = [
+    { id: 'g3', name: '3TIN', channelIds: ['a1', 'a2'], roleIds: ['r3'], defaultMessage: '' },
+    { id: 'g4', name: '4TIN', channelIds: ['b1'], roleIds: ['r4'], defaultMessage: '' },
+  ];
+  st.settings.protectedChannelIds = ['mod'];
+}
 
-const BASE = 'http://127.0.0.1:3998/lock';
+const BASE = `http://127.0.0.1:${PORT}/lock`;
 let ok = 0;
 async function t(nom, fn) {
   try { await fn(); ok++; console.log(`  ✅ ${nom}`); }
@@ -52,6 +63,7 @@ const appel = (chemin, { method = 'POST', cle, ip = '10.0.0.1', body } = {}) => 
 }).then(async r => ({ status: r.status, text: await r.text() }));
 
 (async () => {
+  await demarrer();
   await new Promise(r => setTimeout(r, 300));   // laisser le serveur écouter
 
   console.log('\n── Sans clé créée ──');
