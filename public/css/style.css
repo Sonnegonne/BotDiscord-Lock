@@ -482,3 +482,21 @@ input[type=color] { width: 44px; height: 38px; padding: 3px; background: var(--b
   .sched { flex-wrap: wrap; }
   .sched-acts { flex-direction: row; width: 100%; }
 }
+
+/* ─── Téléphone (MacroDroid) ─── */
+.hook-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.hook-row { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--surface-2); min-width: 0; }
+.hook-row .verb { flex: 0 0 auto; font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  padding: 2px 6px; border-radius: 6px; background: var(--accent-soft); color: var(--text); }
+.hook-row .what { flex: 0 0 150px; font-size: 13px; }
+.hook-row .url { flex: 1 1 auto; min-width: 0; font-family: var(--font-mono); font-size: 11.5px;
+  color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.key-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.key-line .mono { padding: 6px 10px; border-radius: 8px; background: var(--surface-2);
+  border: 1px solid var(--border); font-size: 12.5px; word-break: break-all; }
+@media (max-width: 640px) {
+  .hook-row { flex-wrap: wrap; }
+  .hook-row .what { flex-basis: auto; }
+  .hook-row .url { flex-basis: 100%; order: 3; }
+}

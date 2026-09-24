@@ -18,6 +18,7 @@ const S = {
   stickerRoleSel: new Set(),   // roles epargnes par la garde
   modal: null,             // { type, draft } quand une modale est ouverte
   settingsDirty: false,
+  phoneKey: null,          // clé téléphone, chargée seulement quand on la demande
 };
 
 /* ─── Utilitaires ───────────────────────────────────────────────────────── */
@@ -122,6 +123,7 @@ function render() {
   renderConnection();
   renderProtected();
   renderStickers();
+  renderPhone();
 }
 
 /* ─── Barre latérale ────────────────────────────────────────────────────── */
@@ -269,13 +271,13 @@ function renderDashboard() {
 
 function feedHtml(items) {
   if (!items.length) return `<div class="empty"><strong>Journal vide</strong>Les actions du bot s'inscriront ici.</div>`;
-  const icons = { lock: '🔒', unlock: '🔓', schedule: '📅', error: '⚠️', sticker: '🏷️' };
+  const icons = { lock: '🔒', unlock: '🔓', schedule: '📅', error: '⚠️', sticker: '🏷️', phone: '📱' };
   return `<div class="feed">${items.map(a => `
     <div class="feed-item ${esc(a.type)}">
       <div class="feed-dot">${icons[a.type] || '•'}</div>
       <div class="feed-body">
         <div class="feed-title">${a.type === 'lock' ? 'Fermeture' : a.type === 'unlock' ? 'Réouverture'
-          : a.type === 'sticker' ? 'Sticker supprimé' : a.type === 'error' ? 'Échec' : 'Planning'}
+          : a.type === 'sticker' ? 'Sticker supprimé' : a.type === 'error' ? 'Échec' : a.type === 'phone' ? 'Téléphone' : 'Planning'}
           ${a.count ? `<span class="dim">— ${a.count} salon${a.count > 1 ? 's' : ''}</span>` : ''}
           ${a.label ? `<span class="dim">· ${esc(a.label)}</span>` : ''}</div>
         <div class="feed-meta">${timeAgo(a.at)} · ${fmtDateTime(a.at)} · ${esc(a.source || '')}</div>
@@ -552,6 +554,64 @@ function renderStickerChannels() {
     ${cat.items.map(c => channelRow(c, S.stickerChanSel.has(c.id), `App.toggleStickerChannel('${c.id}')`)).join('')}`).join('');
 }
 
+/* ─── Réglages : téléphone (MacroDroid) ─────────────────────────────── */
+function hookUrl(path) { return `${location.origin}${BASE}/hook/${path}`; }
+
+function renderPhone() {
+  const p = S.data.phone || {};
+  const box = $('phoneBox');
+  $('phoneSub').textContent = p.enabled
+    ? (p.lastUsedAt ? `dernier appel ${timeAgo(p.lastUsedAt)} (${p.lastAction})` : 'jamais utilisé')
+    : 'désactivé';
+
+  if (!p.enabled) {
+    box.innerHTML = `
+      <p class="dim">Fermez ou rouvrez une classe depuis votre téléphone Android, d'un appui sur une tuile
+      des réglages rapides, un widget ou un tag NFC. MacroDroid envoie une requête à DachGuard avec une clé
+      propre au téléphone : pas besoin du mot de passe du portail, et la clé se révoque ici d'un clic.</p>
+      <div class="mt"><button class="btn btn-primary" onclick="App.createPhoneKey()">Créer une clé pour le téléphone</button></div>`;
+    return;
+  }
+
+  const k = S.phoneKey;
+  const rows = [
+    ['GET', 'Statut', 'statut'],
+    ...S.data.groups.flatMap(g => [
+      ['POST', `Fermer ${g.name}`, `fermer/${encodeURIComponent(g.name)}`],
+      ['POST', `Rouvrir ${g.name}`, `ouvrir/${encodeURIComponent(g.name)}`],
+    ]),
+    ['POST', 'Tout fermer', 'tout-fermer'],
+    ['POST', 'Tout rouvrir', 'tout-ouvrir'],
+  ];
+
+  box.innerHTML = `
+    <div class="field" style="margin-top:0">
+      <label>Clé du téléphone — à mettre dans l'en-tête <span class="mono">X-DachGuard-Cle</span></label>
+      <div class="key-line">
+        <span class="mono">${k ? esc(k) : '•'.repeat(32)}</span>
+        ${k ? `<button class="btn btn-ghost btn-sm" onclick="App.copy('${esc(k)}')">Copier</button>`
+            : `<button class="btn btn-ghost btn-sm" onclick="App.showPhoneKey()">Afficher</button>`}
+      </div>
+      <div class="help">Créée ${timeAgo(p.createdAt)}. Cette clé ne sert qu'aux actions ci-dessous ; elle n'ouvre pas le dashboard.</div>
+    </div>
+    <div class="hook-list">
+      ${rows.map(([verb, what, path]) => `
+        <div class="hook-row">
+          <span class="verb">${verb}</span>
+          <span class="what">${esc(what)}</span>
+          <span class="url" title="${esc(hookUrl(path))}">${esc(hookUrl(path))}</span>
+          <button class="btn btn-ghost btn-sm" onclick="App.copy('${esc(hookUrl(path))}')">Copier</button>
+        </div>`).join('')}
+    </div>
+    <div class="help mt-sm">Options de « Fermer » : <span class="mono">?minutes=50</span> rouvre tout seul après 50 min,
+      <span class="mono">&amp;message=…</span> remplace l'annonce. Ajoutez <span class="mono">?format=json</span> pour une réponse JSON.
+      Rouvrir depuis le téléphone met le créneau planifié en cours en pause, comme depuis le dashboard.</div>
+    <div class="mt">
+      <button class="btn btn-ghost" onclick="App.createPhoneKey(true)">Changer la clé</button>
+      <button class="btn btn-danger" style="margin-left:8px" onclick="App.revokePhoneKey()">Désactiver l'accès téléphone</button>
+    </div>`;
+}
+
 function renderConnection() {
   const d = S.data;
   const box = $('connectionBox');
@@ -812,6 +872,38 @@ const App = {
     await api('/api/disconnect', { method: 'POST', body: { forget } });
     toast('Bot déconnecté');
     await load();
+  },
+
+  /* — téléphone — */
+  async createPhoneKey(replace) {
+    if (replace && !await askConfirm('Changer la clé ?',
+      'L\'ancienne clé cesse de fonctionner tout de suite : il faudra coller la nouvelle dans MacroDroid.')) return;
+    try {
+      const r = await api('/api/phone/key', { method: 'POST' });
+      S.phoneKey = r.key;
+      toast('📱 Clé créée — copiez-la dans MacroDroid', 'success');
+      await load();
+    } catch (e) { toast(e.message, 'error'); }
+  },
+
+  async showPhoneKey() {
+    try { S.phoneKey = (await api('/api/phone')).key; renderPhone(); }
+    catch (e) { toast(e.message, 'error'); }
+  },
+
+  async revokePhoneKey() {
+    if (!await askConfirm('Désactiver l\'accès téléphone ?', 'MacroDroid ne pourra plus rien déclencher tant qu\'une nouvelle clé n\'est pas créée.')) return;
+    try {
+      await api('/api/phone/key', { method: 'DELETE' });
+      S.phoneKey = null;
+      toast('Accès téléphone désactivé');
+      await load();
+    } catch (e) { toast(e.message, 'error'); }
+  },
+
+  async copy(text) {
+    try { await navigator.clipboard.writeText(text); toast('Copié', 'success'); }
+    catch { toast('Copie impossible — sélectionnez le texte à la main', 'error'); }
   },
 
   /* — réglages — */

@@ -9,6 +9,7 @@ const store = require('./store');
 const bot = require('./bot');
 const groups = require('./groups');
 const scheduler = require('./scheduler');
+const telephone = require('./telephone');
 
 const app = express();
 app.use(cors());
@@ -60,6 +61,7 @@ app.get(`${BASE_PATH}/api/state`, route(async () => {
     basePath: BASE_PATH,
     settings: st.settings,
     stickerStats: st.stickerStats,
+    phone: telephone.resume(),
     groups: st.groups.map(g => {
       const locked = g.channelIds.filter(id => st.locks[id]).length;
       return { ...g, lockedCount: locked, total: g.channelIds.length };
@@ -117,45 +119,54 @@ app.post(`${BASE_PATH}/api/unlock`, route(async (req) => {
 
 // Verrouiller / rouvrir une classe entière
 app.post(`${BASE_PATH}/api/groups/:id/lock`, route(async (req) => {
-  const g = groups.find(req.params.id);
-  if (!g.channelIds.length) throw new Error(`Aucun salon configuré pour ${g.name}`);
-  if (!g.roleIds.length) throw new Error(`Aucun rôle configuré pour ${g.name}`);
   const { message, durationMinutes, mode } = req.body || {};
-  return summarize(await bot.lock(g.channelIds, g.roleIds, {
-    message: message !== undefined ? message : (g.defaultMessage || undefined),
-    durationMinutes, mode, groupId: g.id, source: 'dashboard', label: g.name,
-  }));
+  return summarize(await fermerClasse(groups.find(req.params.id), { message, durationMinutes, mode, source: 'dashboard' }));
 }));
 
 app.post(`${BASE_PATH}/api/groups/:id/unlock`, route(async (req) => {
-  const g = groups.find(req.params.id);
-  return summarize(await bot.unlock(g.channelIds, g.roleIds, {
-    restore: (req.body && req.body.restore) || 'restore', source: 'dashboard', label: g.name,
-  }));
+  return summarize(await rouvrirClasse(groups.find(req.params.id), { restore: req.body && req.body.restore, source: 'dashboard' }));
 }));
 
-// Tout fermer / tout rouvrir
-app.post(`${BASE_PATH}/api/panic`, route(async (req) => {
+// Tout fermer / tout rouvrir — partagé par le dashboard et le téléphone
+async function toutFermer({ message, durationMinutes, source }) {
   const st = store.get();
   const { channels } = bot.status();
   const protectedIds = new Set(st.settings.protectedChannelIds);
   const channelIds = channels.filter(c => !protectedIds.has(c.id)).map(c => c.id);
   const roleIds = [...new Set(st.groups.flatMap(g => g.roleIds))];
   if (!roleIds.length) throw new Error('Configurez au moins une classe avec un rôle');
-  return summarize(await bot.lock(channelIds, roleIds, {
-    message: (req.body && req.body.message) || undefined,
-    durationMinutes: (req.body && req.body.durationMinutes) || null,
-    source: 'dashboard', label: 'fermeture générale',
-  }));
+  return bot.lock(channelIds, roleIds, {
+    message: message || undefined, durationMinutes: durationMinutes || null,
+    source, label: 'fermeture générale',
+  });
+}
+
+async function toutRouvrir({ restore, source }) {
+  const channelIds = Object.keys(store.get().locks);
+  if (!channelIds.length) return [];
+  return bot.unlock(channelIds, [], { restore: restore || 'restore', source, label: 'réouverture générale' });
+}
+
+async function fermerClasse(g, { message, durationMinutes, mode, source }) {
+  if (!g.channelIds.length) throw new Error(`Aucun salon configuré pour ${g.name}`);
+  if (!g.roleIds.length) throw new Error(`Aucun rôle configuré pour ${g.name}`);
+  return bot.lock(g.channelIds, g.roleIds, {
+    message: message !== undefined ? message : (g.defaultMessage || undefined),
+    durationMinutes, mode, groupId: g.id, source, label: g.name,
+  });
+}
+
+async function rouvrirClasse(g, { restore, source }) {
+  return bot.unlock(g.channelIds, g.roleIds, { restore: restore || 'restore', source, label: g.name });
+}
+
+app.post(`${BASE_PATH}/api/panic`, route(async (req) => {
+  const b = req.body || {};
+  return summarize(await toutFermer({ message: b.message, durationMinutes: b.durationMinutes, source: 'dashboard' }));
 }));
 
 app.post(`${BASE_PATH}/api/release-all`, route(async (req) => {
-  const st = store.get();
-  const channelIds = Object.keys(st.locks);
-  if (!channelIds.length) return { success: true, ok: 0, total: 0, results: [], errors: [] };
-  return summarize(await bot.unlock(channelIds, [], {
-    restore: (req.body && req.body.restore) || 'restore', source: 'dashboard', label: 'réouverture générale',
-  }));
+  return summarize(await toutRouvrir({ restore: req.body && req.body.restore, source: 'dashboard' }));
 }));
 
 app.post(`${BASE_PATH}/api/diagnose`, route(async (req) => {
@@ -254,6 +265,98 @@ app.post(`${BASE_PATH}/api/stickers/reset`, route(async () => {
 }));
 
 app.get(`${BASE_PATH}/api/activity`, route(async () => store.get().activity));
+
+// ─── TÉLÉPHONE (MacroDroid) ─────────────────────────────────────────────────
+// Côté dashboard (derrière le mot de passe du portail) : gérer la clé.
+app.get(`${BASE_PATH}/api/phone`, route(async () => ({ ...telephone.resume(), key: telephone.key() })));
+app.post(`${BASE_PATH}/api/phone/key`, route(async () => ({ success: true, key: telephone.genererCle(), ...telephone.resume() })));
+app.delete(`${BASE_PATH}/api/phone/key`, route(async () => { telephone.revoquer(); return { success: true }; }));
+
+// Côté téléphone : /lock/hook/…, exempté du mot de passe du portail par nginx,
+// gardé par la clé seule. Réponse = une ligne de texte (ou JSON avec ?format=json).
+const HOOK = `${BASE_PATH}/hook`;
+
+function hook(action, handler) {
+  return async (req, res) => {
+    const ip = req.headers['x-real-ip'] || req.socket.remoteAddress;
+    const json = req.query.format === 'json';
+    const reply = (status, text, extra = {}) => {
+      res.status(status);
+      if (json) res.json({ ok: status < 400, text, ...extra });
+      else res.type('text/plain; charset=utf-8').send(text);
+    };
+
+    if (telephone.bloque(ip)) return reply(429, '⛔ Trop d essais avec une mauvaise clé — réessayez dans 15 min');
+    if (!telephone.cleValide(telephone.cleDeLaRequete(req))) {
+      telephone.noterEchec(ip);
+      return reply(401, '⛔ Clé téléphone refusée');
+    }
+    telephone.oublierEchecs(ip);
+
+    try {
+      const { text, results } = await handler(req);
+      telephone.noterUsage(action);
+      const failed = (results || []).filter(r => !r.ok);
+      reply(200, text, results ? { reussis: results.length - failed.length, total: results.length } : {});
+    } catch (err) {
+      reply(err.status || 400, `❌ ${err.message}`);
+    }
+  };
+}
+
+const minutesDe = req => {
+  const v = Number((req.body && req.body.minutes) || req.query.minutes);
+  return v > 0 ? Math.min(v, 24 * 60) : null;
+};
+const messageDe = req => {
+  const v = (req.body && req.body.message) || req.query.message;
+  return v ? String(v).slice(0, 500) : undefined;
+};
+
+app.get(`${HOOK}/statut`, hook('statut', async () => {
+  const { connected } = bot.status();
+  const nextEvent = scheduler.list()
+    .filter(sc => sc.effectiveActive && sc.nextRun)
+    .map(sc => ({ ...sc.nextRun, name: sc.name }))
+    .sort((a, b) => new Date(a.at) - new Date(b.at))[0] || null;
+  return { text: telephone.phraseStatut(store.get(), connected, nextEvent) };
+}));
+
+app.get(`${HOOK}/classes`, hook('classes', async () => ({
+  text: store.get().groups.map(g => g.name).join(', ') || 'aucune classe configurée',
+})));
+
+// Les actions ne répondent qu'en POST : un aperçu de lien (Discord, messagerie)
+// fait un GET, et ne doit jamais fermer une classe par accident.
+app.post(`${HOOK}/fermer/:classe`, hook('fermer', async (req) => {
+  const g = telephone.trouverClasse(req.params.classe);
+  const minutes = minutesDe(req);
+  const results = await fermerClasse(g, { message: messageDe(req), durationMinutes: minutes, source: 'téléphone' });
+  return { results, text: telephone.phraseAction('fermer', g.name, results, { minutes }) };
+}));
+
+app.post(`${HOOK}/ouvrir/:classe`, hook('ouvrir', async (req) => {
+  const g = telephone.trouverClasse(req.params.classe);
+  const results = await rouvrirClasse(g, { source: 'téléphone' });
+  return { results, text: telephone.phraseAction('ouvrir', g.name, results) };
+}));
+
+app.post(`${HOOK}/tout-fermer`, hook('tout-fermer', async (req) => {
+  const minutes = minutesDe(req);
+  const results = await toutFermer({ message: messageDe(req), durationMinutes: minutes, source: 'téléphone' });
+  return { results, text: telephone.phraseAction('fermer', 'Tout le serveur', results, { minutes }) };
+}));
+
+app.post(`${HOOK}/tout-ouvrir`, hook('tout-ouvrir', async () => {
+  const results = await toutRouvrir({ source: 'téléphone' });
+  return { results, text: telephone.phraseAction('ouvrir', 'Tout le serveur', results) };
+}));
+
+app.all(`${HOOK}/*rest`, (req, res) => {
+  res.status(404).type('text/plain; charset=utf-8').send(req.method === 'GET'
+    ? '❌ En GET : statut et classes seulement — fermer et ouvrir se déclenchent en POST'
+    : '❌ Action inconnue : statut, classes, fermer/<classe>, ouvrir/<classe>, tout-fermer, tout-ouvrir');
+});
 
 // ─── PAGE ───────────────────────────────────────────────────────────────────
 app.get(BASE_PATH, (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));

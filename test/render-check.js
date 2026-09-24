@@ -45,6 +45,7 @@ async function main() {
   const sandbox = {
     document: doc,
     window: { scrollTo() {}, App: null },
+    location: { origin: 'https://exemple.test' },
     console,
     setInterval: () => 0,
     setTimeout: (fn) => 0,
@@ -86,6 +87,7 @@ async function main() {
     ['stickerRoles', /role-chip|Aucun/],
     ['stickerBanner', /.*/],
     ['globalBanner', /.*/],
+    ['phoneBox', /X-DachGuard-Cle|Créer une clé/],
   ];
 
   let bad = 0;

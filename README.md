@@ -24,6 +24,8 @@ En ligne : `https://studio-dach.site/lock/` (Basic Auth) — en local : `http://
   dans la seconde, et son auteur reçoit un rappel qui disparaît ensuite. On peut épargner des
   salons (ou des catégories entières), des rôles, la modération et les autres bots.
 - **Commandes Discord** — `/lock`, `/unlock`, `/statut`, réservées à ceux qui peuvent gérer les salons.
+- **Depuis le téléphone** — MacroDroid (ou Tasker) ferme et rouvre une classe d'un appui sur une tuile
+  des réglages rapides, un widget ou un tag NFC, avec une clé propre au téléphone. Voir plus bas.
 - **Diagnostic** — « Vérifier les fuites » liste les rôles qui garderaient la parole malgré le
   verrou (autorisation explicite sur le salon, ou rôle administrateur).
 - **Journal** — qui a fermé quoi, quand, et à quel titre (manuel, planning, minuteur, commande).
@@ -61,6 +63,7 @@ https://discord.com/api/oauth2/authorize?client_id=TON_CLIENT_ID&permissions=268
 | `src/bot.js` | connexion, verrouillage/déverrouillage, diagnostic, commandes slash |
 | `src/groups.js` | les classes et leur détection automatique |
 | `src/stickers.js` | la garde anti-stickers : qui a le droit, et ce qu'on efface |
+| `src/telephone.js` | l'accès téléphone : clé, freinage des mauvaises clés, réponses en une ligne |
 | `src/scheduler.js` | créneaux hebdomadaires + réconciliation |
 | `src/server.js` | API HTTP et service du dashboard |
 | `public/` | dashboard (sans framework) |
@@ -92,12 +95,62 @@ Le complément se fait côté Discord : retirez `Utiliser des stickers externes`
 dans les paramètres du serveur, et les stickers des autres serveurs n'arriveront même plus jusqu'au
 bot. Le dashboard rappelle de le faire tant que c'est en attente.
 
+## Piloter depuis le téléphone (MacroDroid)
+
+Le dashboard est derrière le mot de passe du portail. Le téléphone, lui, passe par
+`/lock/hook/…`, que nginx laisse passer sans ce mot de passe : c'est **une clé propre au
+téléphone** qui garde la porte. Elle ne permet que les six actions ci-dessous, n'ouvre pas le
+dashboard, et se change ou se désactive depuis **Réglages → Téléphone (MacroDroid)**, qui
+affiche aussi les adresses prêtes à copier.
+
+| Méthode | Adresse | Effet |
+|---|---|---|
+| GET  | `/lock/hook/statut` | « 3TIN fermée · 4TIN ouverte — prochaine réouverture 15:40 (Cours 3TIN) » |
+| GET  | `/lock/hook/classes` | les noms de classes connus |
+| POST | `/lock/hook/fermer/<classe>` | ferme la classe (`?minutes=50` : rouvre seule après 50 min ; `&message=…`) |
+| POST | `/lock/hook/ouvrir/<classe>` | rouvre la classe (et met le créneau planifié en cours en pause) |
+| POST | `/lock/hook/tout-fermer` | ferme tout sauf les salons protégés |
+| POST | `/lock/hook/tout-ouvrir` | rouvre tout ce que DachGuard a fermé |
+
+- La clé va dans l'en-tête **`X-DachGuard-Cle`** (ou `Authorization: Bearer …`). `?cle=` marche
+  aussi, mais finit alors dans les journaux nginx.
+- `<classe>` se tape comme on veut : `3tin`, `3TIN`, `3 TIN`.
+- La réponse est **une ligne de texte** faite pour une notification ; `?format=json` pour du JSON.
+- Les actions n'acceptent que **POST** : l'aperçu d'un lien collé dans Discord ou une messagerie
+  fait un GET, et ne doit jamais fermer une classe.
+- Dix mauvaises clés en 15 minutes depuis la même adresse : cette adresse est refusée 15 minutes.
+- Au journal, ces actions apparaissent avec la source `téléphone`.
+
+### Recette MacroDroid
+
+Une macro par geste. Exemple : une tuile des réglages rapides « 3TIN » qui ferme quand on
+l'allume et rouvre quand on l'éteint.
+
+1. **Déclencheur** → *Appareil / Réglages rapides* (*Quick Settings Tile*) → une tuile libre,
+   libellé `3TIN`, type **bascule** ; cocher « activée » **et** « désactivée ».
+2. **Action** → *Si… (If)* → condition *Déclencheur déclenché* = la tuile, état « activée » :
+   - *Connectivité → Requête HTTP* : méthode **POST**, URL `https://studio-dach.site/lock/hook/fermer/3tin`,
+     onglet *En-têtes* : `X-DachGuard-Cle` = la clé copiée du dashboard ;
+     « Enregistrer la réponse dans » une variable texte locale `reponse`.
+   - *Sinon* : la même requête vers `…/hook/ouvrir/3tin`.
+3. **Action** → *Notification* (ou *Toast*) : texte `{lv=reponse}`.
+
+Les libellés exacts varient d'une version de MacroDroid à l'autre ; plus simple encore, deux
+macros séparées (tuile activée → fermer, tuile désactivée → ouvrir) font le même travail.
+
+Autres déclencheurs utiles : un **widget** sur l'écran d'accueil (*Raccourci de lancement*) pour
+« Tout fermer », un **tag NFC** collé sur le bureau de la classe, ou le **statut** en
+*Requête HTTP GET* pour savoir d'un coup d'œil ce qui est fermé. En cas d'échec, MacroDroid
+reçoit le code HTTP (401 : clé refusée, 404 : classe inconnue, 400 : bot hors ligne ou
+Discord a refusé) et la réponse explique pourquoi en une ligne.
+
 ## Tests
 
 ```bash
 node test/demo.js        # dashboard rempli, sans Discord (port 3999)
 node test/render-check.js  # passe toutes les vues sur un état réel, sans navigateur
 node test/sticker-check.js # la garde anti-stickers : décision, suppression, journal, anti-spam
+node test/telephone-check.js # l'accès MacroDroid : clé, POST obligatoire, freinage, réponses
 ```
 
 ## Déploiement (VPS studio-dach.site)

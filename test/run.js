@@ -3,7 +3,7 @@
 const { execFileSync } = require('child_process');
 const path = require('path');
 
-const suites = ['verrou-check.js', 'sticker-check.js'];
+const suites = ['verrou-check.js', 'sticker-check.js', 'telephone-check.js'];
 let bad = 0;
 for (const s of suites) {
   console.log(`\n══ ${s} ${'═'.repeat(Math.max(0, 50 - s.length))}`);

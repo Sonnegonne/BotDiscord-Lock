@@ -36,6 +36,7 @@ function defaults() {
     stickerStats: { removed: 0, lastAt: null, lastUser: null, lastChannel: null, lastError: null },
     snapshots: {},               // channelId -> roleId -> { existed, allow, deny }
     activity: [],                // journal, plus récent en premier
+    phone: { key: null, createdAt: null, lastUsedAt: null, lastAction: null },  // accès MacroDroid
   };
 }
 
