@@ -112,6 +112,22 @@ const appel = (chemin, { method = 'POST', cle, ip = '10.0.0.1', body } = {}) => 
     const r2 = await fetch(`${BASE}/hook/statut?cle=${key}`);
     assert.strictEqual(r2.status, 200);
   });
+  await t('la clé passe en mot de passe Basic Auth (case MacroDroid), nom libre', async () => {
+    const basic = Buffer.from(`admin:${key}`).toString('base64');
+    const r = await fetch(`${BASE}/hook/statut`, { headers: { Authorization: `Basic ${basic}`, 'X-Real-IP': '10.0.0.7' } });
+    assert.strictEqual(r.status, 200, await r.text());
+  });
+  await t('le mot de passe du portail en Basic Auth est refusé avec une explication', async () => {
+    const basic = Buffer.from('admin:mot-de-passe-du-portail').toString('base64');
+    const r = await fetch(`${BASE}/hook/statut`, { headers: { Authorization: `Basic ${basic}`, 'X-Real-IP': '10.0.0.8' } });
+    assert.strictEqual(r.status, 401);
+    assert.match(await r.text(), /pas celui du portail/);
+  });
+  await t('sans clé du tout, la réponse dit où la mettre', async () => {
+    const r = await fetch(`${BASE}/hook/statut`, { headers: { 'X-Real-IP': '10.0.0.9' } });
+    assert.strictEqual(r.status, 401);
+    assert.match(await r.text(), /Aucune clé reçue/);
+  });
   await t('le statut tient en une ligne', async () => {
     const r = await appel('/hook/statut', { method: 'GET', cle: key });
     assert.strictEqual(r.status, 200);

@@ -49,14 +49,39 @@ function cleValide(fournie) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-// Clé lue dans l'en-tête (recommandé) ou, à défaut, dans l'adresse
+// Clé lue dans l'en-tête X-DachGuard-Cle, en Bearer, dans le mot de passe d'une
+// Basic Auth (la case « Basic Authorization » de MacroDroid, nom d'utilisateur
+// libre) ou, à défaut, dans l'adresse
 function cleDeLaRequete(req) {
   const h = req.headers || {};
   if (h['x-dachguard-cle']) return String(h['x-dachguard-cle']).trim();
   const auth = String(h.authorization || '');
   if (/^bearer\s+/i.test(auth)) return auth.replace(/^bearer\s+/i, '').trim();
+  const basic = motDePasseBasic(auth);
+  if (basic) return basic;
   if (req.query && req.query.cle) return String(req.query.cle).trim();
   return null;
+}
+
+function motDePasseBasic(auth) {
+  const m = /^basic\s+(\S+)/i.exec(auth);
+  if (!m) return null;
+  const decode = Buffer.from(m[1], 'base64').toString('utf8');
+  const i = decode.indexOf(':');
+  return i >= 0 ? decode.slice(i + 1).trim() || null : null;
+}
+
+// Pourquoi une clé est refusée, dit en une ligne lisible sur le téléphone
+function motifRefus(req) {
+  const h = req.headers || {};
+  const auth = String(h.authorization || '');
+  if (!cleDeLaRequete(req)) {
+    return '⛔ Aucune clé reçue — mettez la clé du téléphone (Réglages → Téléphone) dans l en-tête X-DachGuard-Cle ou comme mot de passe Basic Auth';
+  }
+  if (!h['x-dachguard-cle'] && /^basic\s+/i.test(auth)) {
+    return '⛔ Clé téléphone refusée — le mot de passe Basic Auth doit être la clé du téléphone (Réglages → Téléphone), pas celui du portail';
+  }
+  return etat().key ? '⛔ Clé téléphone refusée' : '⛔ Accès téléphone désactivé dans le dashboard';
 }
 
 function noterUsage(action) {
@@ -141,7 +166,7 @@ function phraseStatut(st, connected, nextEvent) {
 }
 
 module.exports = {
-  resume, genererCle, revoquer, cleValide, cleDeLaRequete, noterUsage,
+  resume, genererCle, revoquer, cleValide, cleDeLaRequete, motifRefus, noterUsage,
   bloque, noterEchec, oublierEchecs, trouverClasse, normaliser,
   phraseAction, phraseStatut, key: () => etat().key,
 };

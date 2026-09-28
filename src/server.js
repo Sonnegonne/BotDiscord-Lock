@@ -289,7 +289,7 @@ function hook(action, handler) {
     if (telephone.bloque(ip)) return reply(429, '⛔ Trop d essais avec une mauvaise clé — réessayez dans 15 min');
     if (!telephone.cleValide(telephone.cleDeLaRequete(req))) {
       telephone.noterEchec(ip);
-      return reply(401, '⛔ Clé téléphone refusée');
+      return reply(401, telephone.motifRefus(req));
     }
     telephone.oublierEchecs(ip);
 

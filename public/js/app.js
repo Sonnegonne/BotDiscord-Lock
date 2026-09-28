@@ -586,7 +586,7 @@ function renderPhone() {
 
   box.innerHTML = `
     <div class="field" style="margin-top:0">
-      <label>Clé du téléphone — à mettre dans l'en-tête <span class="mono">X-DachGuard-Cle</span></label>
+      <label>Clé du téléphone — en-tête <span class="mono">X-DachGuard-Cle</span>, ou mot de passe de la « Basic Authorization » de MacroDroid (nom d'utilisateur libre)</label>
       <div class="key-line">
         <span class="mono">${k ? esc(k) : '•'.repeat(32)}</span>
         ${k ? `<button class="btn btn-ghost btn-sm" onclick="App.copy('${esc(k)}')">Copier</button>`
