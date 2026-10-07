@@ -8,6 +8,7 @@ const {
 } = require('discord.js');
 const store = require('./store');
 const stickers = require('./stickers');
+const { doitAnnoncer, epingler } = require('./annonce');
 const {
   LOCKABLE_TYPES, kindOf, lockedPerms, clearPerms, allowPerms,
   snapshotToOptions, bypassKeys, planDeverrouillage,
@@ -172,10 +173,11 @@ function lockEmbed({ message, until, groupName, roleNames }) {
 }
 
 async function postLockNotice(channel, opts) {
-  if (!s().settings.announceLock) return null;
-  if (opts.message === '') return null;          // message vide = pas d encart
+  if (!doitAnnoncer(s().settings, opts.message)) return null;
   try {
     const msg = await channel.send({ embeds: [lockEmbed(opts)] });
+    // Épinglé pour rester trouvable ; il part avec l'encart à la réouverture.
+    await epingler(msg);
     return msg.id;
   } catch (err) {
     console.warn(`[lock] encart impossible dans #${channel.name}: ${err.message}`);
