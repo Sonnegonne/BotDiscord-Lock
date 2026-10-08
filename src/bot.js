@@ -175,7 +175,7 @@ function lockEmbed({ message, until, groupName, roleNames }) {
 async function postLockNotice(channel, opts) {
   if (!doitAnnoncer(s().settings, opts.message)) return null;
   try {
-    const msg = await channel.send({ embeds: [lockEmbed(opts)] });
+    const msg = await channel.send({ embeds: [lockEmbed(opts)], flags: MessageFlags.SuppressNotifications });
     // Épinglé pour rester trouvable ; il part avec l'encart à la réouverture.
     await epingler(msg);
     return msg.id;
@@ -198,7 +198,7 @@ async function postUnlockNotice(channel) {
   try {
     const e = new EmbedBuilder().setColor(0x57f287).setTitle('🔓 Salon rouvert')
       .setDescription('Vous pouvez à nouveau écrire ici.').setFooter({ text: 'DachGuard' });
-    const msg = await channel.send({ embeds: [e] });
+    const msg = await channel.send({ embeds: [e], flags: MessageFlags.SuppressNotifications });
     setTimeout(() => msg.delete().catch(() => {}), 60000);
   } catch (e) { /* ignore */ }
 }

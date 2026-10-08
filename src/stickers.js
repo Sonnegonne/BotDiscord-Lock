@@ -6,7 +6,7 @@
 // sticker est effacé, sauf exception. La décision est isolée ici pour pouvoir
 // être testée sans connexion (voir test/sticker-check.js).
 // ─────────────────────────────────────────────────────────────────────────────
-const { PermissionsBitField } = require('discord.js');
+const { PermissionsBitField, MessageFlags } = require('discord.js');
 
 // Chargement différé : store.js lit nos valeurs par défaut dès son initialisation,
 // un require en tête de fichier ferait une boucle et renverrait un module vide.
@@ -86,6 +86,7 @@ async function warnAuthor(message, r) {
     const sent = await message.channel.send({
       content: `${message.author} ${r.warnMessage}`,
       allowedMentions: { users: [message.author.id] },
+      flags: MessageFlags.SuppressNotifications,
     });
     const delay = Math.max(3, Number(r.warnSeconds) || 10) * 1000;
     setTimeout(() => sent.delete().catch(() => {}), delay);
