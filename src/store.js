@@ -23,8 +23,7 @@ function defaults() {
     settings: {
       timezone: 'Europe/Brussels',
       strictLock: true,          // bloque aussi fils de discussion + réactions
-      announceLock: true,        // poste un encart dans le salon verrouillé
-      announceUnlock: true,      // poste un « c'est rouvert » éphémère
+      announceLock: true,        // écrit la fermeture dans le sujet du salon
       defaultLockMessage: 'Salon fermé — on se retrouve à la réouverture.',
       protectedChannelIds: [],   // jamais touchés par les actions globales
       slashCommands: true,
@@ -32,7 +31,7 @@ function defaults() {
     },
     groups: [],                  // les classes (3TIN, 4TIN, …)
     schedules: [],
-    locks: {},                   // channelId -> { channelName, parentName, messageId, roles:{} }
+    locks: {},                   // channelId -> { channelName, parentName, sujet:{origine}, roles:{} }
     stickerStats: { removed: 0, lastAt: null, lastUser: null, lastChannel: null, lastError: null },
     snapshots: {},               // channelId -> roleId -> { existed, allow, deny }
     activity: [],                // journal, plus récent en premier

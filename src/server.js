@@ -231,7 +231,7 @@ app.post(`${BASE_PATH}/api/schedules/:id/run`, route(async (req) => {
 app.put(`${BASE_PATH}/api/settings`, route(async (req) => {
   const st = store.get();
   const body = req.body || {};
-  const allowed = ['timezone', 'strictLock', 'announceLock', 'announceUnlock',
+  const allowed = ['timezone', 'strictLock', 'announceLock',
                    'defaultLockMessage', 'protectedChannelIds', 'slashCommands'];
   for (const key of allowed) if (body[key] !== undefined) st.settings[key] = body[key];
 

@@ -489,7 +489,6 @@ function fillSettings() {
   $('setTimezone').value = st.timezone;
   $('setStrict').checked = !!st.strictLock;
   $('setAnnounceLock').checked = !!st.announceLock;
-  $('setAnnounceUnlock').checked = !!st.announceUnlock;
   $('setSlash').checked = !!st.slashCommands;
 
   const sg = st.stickerGuard || {};
@@ -916,7 +915,6 @@ const App = {
           timezone: $('setTimezone').value,
           strictLock: $('setStrict').checked,
           announceLock: $('setAnnounceLock').checked,
-          announceUnlock: $('setAnnounceUnlock').checked,
           slashCommands: $('setSlash').checked,
         },
       });

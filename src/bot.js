@@ -8,7 +8,9 @@ const {
 } = require('discord.js');
 const store = require('./store');
 const stickers = require('./stickers');
-const { doitAnnoncer, epingler } = require('./annonce');
+const {
+  doitAnnoncer, aUnSujet, estSujetDachGuard, texteSujet, poserSujet,
+} = require('./annonce');
 const {
   LOCKABLE_TYPES, kindOf, lockedPerms, clearPerms, allowPerms,
   snapshotToOptions, bypassKeys, planDeverrouillage,
@@ -157,50 +159,31 @@ function snapshot(channel, roleId) {
   store.save();
 }
 
-// ─── Encart de verrouillage ─────────────────────────────────────────────────
-function lockEmbed({ message, until, groupName, roleNames }) {
-  const e = new EmbedBuilder()
-    .setColor(0xed4245)
-    .setTitle('🔒 Salon verrouillé')
-    .setDescription(message || s().settings.defaultLockMessage);
-  const fields = [];
-  if (groupName) fields.push({ name: 'Concerne', value: groupName, inline: true });
-  else if (roleNames && roleNames.length) fields.push({ name: 'Concerne', value: roleNames.map(r => '@' + r).join(', ').slice(0, 900), inline: true });
-  if (until) fields.push({ name: 'Réouverture', value: `<t:${Math.floor(new Date(until).getTime() / 1000)}:t>`, inline: true });
-  if (fields.length) e.addFields(fields);
-  e.setFooter({ text: 'DachGuard' }).setTimestamp();
-  return e;
-}
-
-async function postLockNotice(channel, opts) {
-  if (!doitAnnoncer(s().settings, opts.message)) return null;
-  try {
-    const msg = await channel.send({ embeds: [lockEmbed(opts)], flags: MessageFlags.SuppressNotifications });
-    // Épinglé pour rester trouvable ; il part avec l'encart à la réouverture.
-    await epingler(msg);
-    return msg.id;
-  } catch (err) {
-    console.warn(`[lock] encart impossible dans #${channel.name}: ${err.message}`);
-    return null;
+// ─── Annonce de fermeture (sujet du salon) ──────────────────────────────────
+// Plus aucun message posté à la fermeture ni à la réouverture : un message,
+// même @silent, laisse une pastille « non lu » chez chaque élève (voir annonce.js).
+function poserAnnonce(channel, entry, opts) {
+  if (!aUnSujet(channel) || !doitAnnoncer(s().settings, opts.message)) return;
+  if (!entry.sujet) {
+    const actuel = channel.topic || '';
+    // Un sujet déjà marqué « verrouillé » n'est pas l'original (redémarrage en
+    // plein verrou) : on ne le remettra pas à la réouverture.
+    entry.sujet = { origine: estSujetDachGuard(actuel) ? '' : actuel };
   }
+  poserSujet(channel, texteSujet(opts, s().settings), 'DachGuard — fermeture');
 }
 
+function retirerAnnonce(channel, entry) {
+  if (entry.messageId) removeLockNotice(channel, entry.messageId);
+  if (entry.sujet) poserSujet(channel, entry.sujet.origine, 'DachGuard — reouverture');
+}
+
+// Encarts postés avant le 14/10/2026 : encore effacés à la réouverture.
 async function removeLockNotice(channel, messageId) {
-  if (!messageId) return;
   try {
     const msg = await channel.messages.fetch(messageId);
     if (msg) await msg.delete();
   } catch (e) { /* déjà supprimé */ }
-}
-
-async function postUnlockNotice(channel) {
-  if (!s().settings.announceUnlock) return;
-  try {
-    const e = new EmbedBuilder().setColor(0x57f287).setTitle('🔓 Salon rouvert')
-      .setDescription('Vous pouvez à nouveau écrire ici.').setFooter({ text: 'DachGuard' });
-    const msg = await channel.send({ embeds: [e], flags: MessageFlags.SuppressNotifications });
-    setTimeout(() => msg.delete().catch(() => {}), 60000);
-  } catch (e) { /* ignore */ }
 }
 
 // ─── VERROUILLAGE ───────────────────────────────────────────────────────────
@@ -245,12 +228,11 @@ async function lockInterne(channelIds, roleIds, opts = {}) {
     entry.channelName = channel.name;
     entry.parentName = channel.parent?.name || 'Sans catégorie';
 
-    if (!entry.messageId && mode !== 'hide') {
-      entry.messageId = await postLockNotice(channel, {
+    if (!entry.sujet && !entry.messageId && mode !== 'hide') {
+      poserAnnonce(channel, entry, {
         message: opts.message,
         until,
-        groupName: group ? `${group.emoji || ''} ${group.name}`.trim() : null,
-        roleNames,
+        groupName: group ? group.name : null,
       });
     }
     for (const roleId of roles) {
@@ -337,9 +319,8 @@ async function unlockInterne(channelIds, roleIds, opts = {}) {
     }
 
     if (entry && Object.keys(entry.roles).length === 0) {
-      await removeLockNotice(channel, entry.messageId);
+      retirerAnnonce(channel, entry);
       delete st.locks[channelId];
-      if (!opts.silent) await postUnlockNotice(channel);
     }
     if (st.snapshots[channelId] && Object.keys(st.snapshots[channelId]).length === 0) delete st.snapshots[channelId];
 
